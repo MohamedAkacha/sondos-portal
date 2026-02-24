@@ -183,21 +183,27 @@ export default function BalancePage({ embedded = false }) {
         on_initiating: function () {
           setTopupStep('processing');
         },
-        on_completed: async function (payment) {
-          try {
-            const verifyRes = await paymentAPI.verifyPayment(
-              cfg.metadata.payment_id,
-              payment.id
-            );
+        on_completed: function (payment) {
+          // لا تستخدم async — مُيسّر ما يدعمها
+          paymentAPI.verifyPayment(
+            cfg.metadata.payment_id,
+            payment.id
+          ).then(function(verifyRes) {
             if (verifyRes.status === 'paid') {
               setTopupResult({ success: true });
               setTopupStep('result');
-              // Refresh balance
-              setTimeout(() => loadData(), 1000);
+              setTimeout(function() { loadData(); }, 1000);
+            } else {
+              setTopupResult({ success: false, message: verifyRes.message || 'حالة غير متوقعة' });
+              setTopupStep('result');
             }
-          } catch (e) {
+          }).catch(function(e) {
             console.error('Verify failed:', e);
-          }
+            // الدفع نجح عند مُيسّر — الـ webhook بيعالج التحويل
+            setTopupResult({ success: true });
+            setTopupStep('result');
+            setTimeout(function() { loadData(); }, 2000);
+          });
         },
         on_failure: function (error) {
           setTopupResult({ success: false, message: error?.message || t('pay.failed') });
