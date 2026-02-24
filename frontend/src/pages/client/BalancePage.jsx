@@ -182,32 +182,37 @@ export default function BalancePage({ embedded = false }) {
         metadata: cfg.metadata,
         on_initiating: function () {
           setTopupStep('processing');
+          return true;
         },
         on_completed: function (payment) {
-          // لا تستخدم async — مُيسّر ما يدعمها
-          paymentAPI.verifyPayment(
-            cfg.metadata.payment_id,
-            payment.id
-          ).then(function(verifyRes) {
-            if (verifyRes.status === 'paid') {
+          // verify بشكل منفصل — لا تبلك الـ callback
+          setTimeout(function() {
+            paymentAPI.verifyPayment(
+              cfg.metadata.payment_id,
+              payment.id
+            ).then(function(verifyRes) {
+              if (verifyRes.status === 'paid') {
+                setTopupResult({ success: true });
+                setTopupStep('result');
+                setTimeout(function() { loadData(); }, 1000);
+              } else {
+                setTopupResult({ success: false, message: verifyRes.message || 'حالة غير متوقعة' });
+                setTopupStep('result');
+              }
+            }).catch(function(e) {
+              console.error('Verify failed:', e);
+              // الدفع نجح عند مُيسّر — الـ webhook بيتكفل
               setTopupResult({ success: true });
               setTopupStep('result');
-              setTimeout(function() { loadData(); }, 1000);
-            } else {
-              setTopupResult({ success: false, message: verifyRes.message || 'حالة غير متوقعة' });
-              setTopupStep('result');
-            }
-          }).catch(function(e) {
-            console.error('Verify failed:', e);
-            // الدفع نجح عند مُيسّر — الـ webhook بيعالج التحويل
-            setTopupResult({ success: true });
-            setTopupStep('result');
-            setTimeout(function() { loadData(); }, 2000);
-          });
+              setTimeout(function() { loadData(); }, 2000);
+            });
+          }, 100);
+          return true;
         },
         on_failure: function (error) {
           setTopupResult({ success: false, message: error?.message || t('pay.failed') });
           setTopupStep('result');
+          return true;
         },
       });
       moyasarInitialized.current = true;
