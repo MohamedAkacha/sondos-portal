@@ -524,19 +524,50 @@ async function transferBalanceToAutoCalls(payment) {
     }
 
     const amountSAR = payment.amountDisplay || (payment.amountHalala / 100);
+    let autocallsUserId = user.autocallsUserId;
 
-    console.log(`[Transfer Balance] Adding ${amountSAR} SAR to ${user.email} (autocallsUserId: ${user.autocallsUserId || 'N/A'})...`);
+    // لو ما عندنا autocallsUserId → نبحث عنه من AutoCalls
+    if (!autocallsUserId) {
+      console.log(`[Transfer Balance] No cached user_id, looking up from AutoCalls...`);
+      try {
+        const usersRes = await fetch('https://app.autocalls.ai/api/white-label/users', {
+          headers: {
+            'Authorization': `Bearer ${AUTOCALLS_API_KEY}`,
+            'Accept': 'application/json',
+          },
+        });
+        const usersData = await usersRes.json();
+        const acUsers = usersData.data || usersData.users || usersData || [];
+        const foundUser = Array.isArray(acUsers) 
+          ? acUsers.find(u => u.email === user.email)
+          : null;
+        
+        if (foundUser) {
+          autocallsUserId = foundUser.id;
+          // حفظ الـ ID للمرات القادمة
+          await User.findByIdAndUpdate(user._id, { autocallsUserId });
+          console.log(`[Transfer Balance] Found & cached user_id: ${autocallsUserId}`);
+        } else {
+          console.error(`[Transfer Balance] ❌ User ${user.email} not found in AutoCalls`);
+          await Payment.findByIdAndUpdate(payment._id, {
+            $set: { 'metadata.transferError': 'User not found in AutoCalls', 'metadata.transferAttempted': true }
+          });
+          return;
+        }
+      } catch (lookupErr) {
+        console.error(`[Transfer Balance] ❌ Lookup failed: ${lookupErr.message}`);
+      }
+    }
+
+    console.log(`[Transfer Balance] Adding ${amountSAR} SAR to ${user.email} (user_id: ${autocallsUserId})...`);
 
     const transferBody = {
+      user_id: autocallsUserId,
       email: user.email,
       transfer_type: 'balance',
       operation: 'add',
       amount: amountSAR,
     };
-    // إضافة user_id لو موجود
-    if (user.autocallsUserId) {
-      transferBody.user_id = user.autocallsUserId;
-    }
 
     const response = await fetch('https://app.autocalls.ai/api/white-label/transfer', {
       method: 'POST',
@@ -578,7 +609,7 @@ async function transferBalanceToAutoCalls(payment) {
       $set: { 'metadata.transferSuccess': true, 'metadata.transferResponse': data }
     });
 
-    console.log(`[Transfer Balance] ✅ Success: ${amountSAR} SAR → ${user.email}`);
+    console.log(`[Transfer Balance] ✅ Success: ${amountSAR} SAR → ${user.email} (user_id: ${autocallsUserId})`);
 
   } catch (error) {
     console.error(`[Transfer Balance] ❌ Error: ${error.message}`);
