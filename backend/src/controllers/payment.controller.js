@@ -113,8 +113,11 @@ exports.createPayment = async (req, res) => {
     } else if (type === 'topup') {
       // شحن رصيد مخصص
       const { amount } = req.body;
-      if (!amount || amount < 10) {
+      if (!amount || !Number.isFinite(amount) || amount < 10) {
         return res.status(400).json({ success: false, message: 'أقل مبلغ للشحن 10 ر.س' });
+      }
+      if (amount > 50000) {
+        return res.status(400).json({ success: false, message: 'أقصى مبلغ للشحن 50,000 ر.س' });
       }
       amountHalala = Math.round(amount * 100);
       description = `شحن رصيد ${amount} ر.س - سندس AI`;
@@ -465,8 +468,12 @@ exports.getSubscription = async (req, res) => {
 // ══════════════════════════════════════════════════════
 async function activateSubscription(payment) {
   try {
-    if (!payment.plan) return; // شحن رصيد بدون باقة
-    
+    // ── شحن رصيد (topup) → تحويل الرصيد إلى AutoCalls ──
+    if (!payment.plan || payment.type === 'topup') {
+      await transferBalanceToAutoCalls(payment);
+      return;
+    }
+
     const plan = await Plan.findById(payment.plan);
     if (!plan) return;
     
@@ -494,6 +501,85 @@ async function activateSubscription(payment) {
     console.log(`[Subscription] Activated for user ${payment.user} — Plan: ${plan.name}`);
   } catch (error) {
     console.error('[Activate Subscription]', error.message);
+  }
+}
+
+// ══════════════════════════════════════════════════════
+// Helper: تحويل الرصيد إلى حساب المستخدم في AutoCalls
+// يُستدعى بعد نجاح دفع شحن الرصيد (topup)
+// ══════════════════════════════════════════════════════
+async function transferBalanceToAutoCalls(payment) {
+  const AUTOCALLS_API_KEY = process.env.AUTOCALLS_API_KEY;
+  if (!AUTOCALLS_API_KEY) {
+    console.error('[Transfer Balance] AUTOCALLS_API_KEY not configured!');
+    return;
+  }
+
+  try {
+    // جلب بيانات المستخدم
+    const user = await User.findById(payment.user);
+    if (!user) {
+      console.error(`[Transfer Balance] User not found: ${payment.user}`);
+      return;
+    }
+
+    const amountSAR = payment.amountDisplay || (payment.amountHalala / 100);
+
+    console.log(`[Transfer Balance] Adding ${amountSAR} SAR to ${user.email}...`);
+
+    const response = await fetch('https://app.autocalls.ai/api/white-label/transfer', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${AUTOCALLS_API_KEY}`,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: JSON.stringify({
+        email: user.email,
+        transfer_type: 'balance',
+        operation: 'add',
+        amount: amountSAR,
+      }),
+    });
+
+    // قراءة الرد كنص أولاً للتشخيص
+    const responseText = await response.text();
+    console.log(`[Transfer Balance] Status: ${response.status}, Response: ${responseText}`);
+
+    let data;
+    try {
+      data = JSON.parse(responseText);
+    } catch (parseError) {
+      console.error(`[Transfer Balance] ❌ Invalid JSON response: ${responseText.substring(0, 200)}`);
+      await Payment.findByIdAndUpdate(payment._id, {
+        $set: { 'metadata.transferError': `Invalid response: ${responseText.substring(0, 200)}`, 'metadata.transferAttempted': true }
+      });
+      return;
+    }
+
+    if (!response.ok) {
+      const errorMsg = data.message || data.error || `AutoCalls transfer failed (${response.status})`;
+      console.error(`[Transfer Balance] ❌ Failed: ${errorMsg}`, data);
+      
+      await Payment.findByIdAndUpdate(payment._id, {
+        $set: { 'metadata.transferError': errorMsg, 'metadata.transferAttempted': true }
+      });
+      return;
+    }
+
+    // ✅ نجاح التحويل
+    await Payment.findByIdAndUpdate(payment._id, {
+      $set: { 'metadata.transferSuccess': true, 'metadata.transferResponse': data }
+    });
+
+    console.log(`[Transfer Balance] ✅ Success: ${amountSAR} SAR → ${user.email}`);
+
+  } catch (error) {
+    console.error(`[Transfer Balance] ❌ Error: ${error.message}`);
+    
+    await Payment.findByIdAndUpdate(payment._id, {
+      $set: { 'metadata.transferError': error.message, 'metadata.transferAttempted': true }
+    });
   }
 }
 
