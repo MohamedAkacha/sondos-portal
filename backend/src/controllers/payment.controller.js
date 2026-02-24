@@ -525,7 +525,18 @@ async function transferBalanceToAutoCalls(payment) {
 
     const amountSAR = payment.amountDisplay || (payment.amountHalala / 100);
 
-    console.log(`[Transfer Balance] Adding ${amountSAR} SAR to ${user.email}...`);
+    console.log(`[Transfer Balance] Adding ${amountSAR} SAR to ${user.email} (autocallsUserId: ${user.autocallsUserId || 'N/A'})...`);
+
+    const transferBody = {
+      email: user.email,
+      transfer_type: 'balance',
+      operation: 'add',
+      amount: amountSAR,
+    };
+    // إضافة user_id لو موجود
+    if (user.autocallsUserId) {
+      transferBody.user_id = user.autocallsUserId;
+    }
 
     const response = await fetch('https://app.autocalls.ai/api/white-label/transfer', {
       method: 'POST',
@@ -534,12 +545,7 @@ async function transferBalanceToAutoCalls(payment) {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
       },
-      body: JSON.stringify({
-        email: user.email,
-        transfer_type: 'balance',
-        operation: 'add',
-        amount: amountSAR,
-      }),
+      body: JSON.stringify(transferBody),
     });
 
     // قراءة الرد كنص أولاً للتشخيص

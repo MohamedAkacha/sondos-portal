@@ -92,6 +92,7 @@ exports.registerWithPayment = async (req, res) => {
     // ── 4. Create user on external service (siyadah) ──
     const resolvedPlanCode = plan.planCode || SLUG_TO_PLAN_CODE[plan.slug] || 'PLN-001';
     let sondosApiKey = '';
+    let autocallsUserId = null;
 
     try {
       console.log(`[RegisterWithPayment] Calling siyadah with plan_id: ${resolvedPlanCode}`);
@@ -103,6 +104,9 @@ exports.registerWithPayment = async (req, res) => {
         planId: resolvedPlanCode,
       });
       sondosApiKey = setupResult.apiKey;
+      // حفظ AutoCalls user ID لتحويل الرصيد لاحقاً
+      autocallsUserId = setupResult.fullResponse?.user_id || null;
+      console.log(`[RegisterWithPayment] AutoCalls user_id: ${autocallsUserId}`);
     } catch (setupError) {
       console.error('[RegisterWithPayment] Siyadah failed:', setupError.message);
       const errorMsg = setupError.name === 'AbortError'
@@ -123,6 +127,7 @@ exports.registerWithPayment = async (req, res) => {
       planId: plan._id,
       sondosApiKey,
       api_key: sondosApiKey,
+      autocallsUserId,
     });
 
     // ── 6. Create Payment record ──
@@ -222,11 +227,13 @@ exports.register = async (req, res) => {
     }
 
     let sondosApiKey = '';
+    let autocallsUserIdNormal = null;
     try {
       const autoCallsResult = await registerOnAutoCalls({
         name, email: email.toLowerCase(), password, timezone: timezone || 'Asia/Riyadh',
       });
       sondosApiKey = autoCallsResult.apiKey;
+      autocallsUserIdNormal = autoCallsResult.fullResponse?.user?.id || null;
     } catch (autoCallsError) {
       return res.status(500).json({
         success: false,
@@ -238,6 +245,7 @@ exports.register = async (req, res) => {
       name, email: email.toLowerCase(), phone, company: company || '',
       timezone: timezone || 'Asia/Riyadh', password, role: 'client',
       planId: null, sondosApiKey, api_key: sondosApiKey,
+      autocallsUserId: autocallsUserIdNormal,
     });
 
     try {

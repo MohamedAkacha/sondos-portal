@@ -56,6 +56,11 @@ const userSchema = new mongoose.Schema({
     type: String,
     default: ''
   },
+  // AutoCalls platform user ID (for balance transfers)
+  autocallsUserId: {
+    type: Number,
+    default: null
+  },
   isActive: {
     type: Boolean,
     default: true
