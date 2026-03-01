@@ -32,3 +32,11 @@ services:
         sync: false
       - key: SETUP_SERVICE_URL
         value: https://siyadah-whatsapp-saas.onrender.com
+
+      # ✅ Moyasar Payment Gateway — أضف المفاتيح الحقيقية (Live) في لوحة تحكم Render
+      - key: MOYASAR_PUBLISHABLE_KEY
+        sync: false
+      - key: MOYASAR_SECRET_KEY
+        sync: false
+      - key: MOYASAR_WEBHOOK_SECRET
+        sync: false

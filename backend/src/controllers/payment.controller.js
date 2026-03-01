@@ -243,12 +243,25 @@ exports.verifyPayment = async (req, res) => {
       payment.paidAt = new Date();
       await payment.save();
       
-      // 5. تفعيل الاشتراك
-      await activateSubscription(payment);
+      // 5. تفعيل الاشتراك أو تحويل الرصيد
+      const activationResult = await activateSubscription(payment);
+      
+      // ✅ لو التحويل فشل — نبلّغ الفرونت إند بالحالة الحقيقية
+      if (!activationResult.success) {
+        console.error(`[Verify Payment] Payment ${payment._id} paid but transfer failed:`, activationResult.error);
+        return res.json({
+          success: true,
+          status: 'paid',
+          transferStatus: 'failed',
+          message: 'تم الدفع لكن فشل تحويل الرصيد. سيتم المحاولة تلقائياً أو تواصل مع الدعم.',
+          payment: payment.toPublicJSON(),
+        });
+      }
       
       return res.json({
         success: true,
         status: 'paid',
+        transferStatus: 'success',
         message: 'تم الدفع بنجاح!',
         payment: payment.toPublicJSON(),
       });
@@ -470,12 +483,12 @@ async function activateSubscription(payment) {
   try {
     // ── شحن رصيد (topup) → تحويل الرصيد إلى AutoCalls ──
     if (!payment.plan || payment.type === 'topup') {
-      await transferBalanceToAutoCalls(payment);
-      return;
+      const transferOk = await transferBalanceToAutoCalls(payment);
+      return { success: transferOk, type: 'topup' };
     }
 
     const plan = await Plan.findById(payment.plan);
-    if (!plan) return;
+    if (!plan) return { success: false, type: 'subscription', error: 'Plan not found' };
     
     // البحث عن اشتراك قائم أو إنشاء جديد
     let subscription = await Subscription.findOne({
@@ -499,20 +512,33 @@ async function activateSubscription(payment) {
     await User.findByIdAndUpdate(payment.user, { planId: plan._id.toString() });
     
     console.log(`[Subscription] Activated for user ${payment.user} — Plan: ${plan.name}`);
+    return { success: true, type: 'subscription' };
   } catch (error) {
     console.error('[Activate Subscription]', error.message);
+    return { success: false, type: payment.type, error: error.message };
   }
 }
 
 // ══════════════════════════════════════════════════════
 // Helper: تحويل الرصيد إلى حساب المستخدم في AutoCalls
 // يُستدعى بعد نجاح دفع شحن الرصيد (topup)
+// ✅ يدعم إعادة المحاولة (retry) حتى 3 مرات
 // ══════════════════════════════════════════════════════
-async function transferBalanceToAutoCalls(payment) {
+const MAX_TRANSFER_RETRIES = 3;
+const RETRY_DELAY_MS = 3000; // 3 ثواني بين كل محاولة
+
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function transferBalanceToAutoCalls(payment, retryCount = 0) {
   const AUTOCALLS_API_KEY = process.env.AUTOCALLS_API_KEY;
   if (!AUTOCALLS_API_KEY) {
     console.error('[Transfer Balance] AUTOCALLS_API_KEY not configured!');
-    return;
+    await Payment.findByIdAndUpdate(payment._id, {
+      $set: { 'metadata.transferError': 'AUTOCALLS_API_KEY not configured', 'metadata.transferAttempted': true }
+    });
+    return false;
   }
 
   try {
@@ -520,7 +546,10 @@ async function transferBalanceToAutoCalls(payment) {
     const user = await User.findById(payment.user);
     if (!user) {
       console.error(`[Transfer Balance] User not found: ${payment.user}`);
-      return;
+      await Payment.findByIdAndUpdate(payment._id, {
+        $set: { 'metadata.transferError': 'User not found in DB', 'metadata.transferAttempted': true }
+      });
+      return false;
     }
 
     const amountSAR = payment.amountDisplay || (payment.amountHalala / 100);
@@ -538,8 +567,9 @@ async function transferBalanceToAutoCalls(payment) {
         });
         const usersData = await usersRes.json();
         const acUsers = usersData.data || usersData.users || usersData || [];
+        // ✅ مقارنة بدون حساسية للأحرف
         const foundUser = Array.isArray(acUsers) 
-          ? acUsers.find(u => u.email === user.email)
+          ? acUsers.find(u => u.email?.toLowerCase() === user.email?.toLowerCase())
           : null;
         
         if (foundUser) {
@@ -552,14 +582,24 @@ async function transferBalanceToAutoCalls(payment) {
           await Payment.findByIdAndUpdate(payment._id, {
             $set: { 'metadata.transferError': 'User not found in AutoCalls', 'metadata.transferAttempted': true }
           });
-          return;
+          return false;
         }
       } catch (lookupErr) {
         console.error(`[Transfer Balance] ❌ Lookup failed: ${lookupErr.message}`);
+        // ✅ إعادة المحاولة عند فشل البحث
+        if (retryCount < MAX_TRANSFER_RETRIES) {
+          console.log(`[Transfer Balance] ⏳ Retry ${retryCount + 1}/${MAX_TRANSFER_RETRIES} in ${RETRY_DELAY_MS}ms...`);
+          await sleep(RETRY_DELAY_MS);
+          return transferBalanceToAutoCalls(payment, retryCount + 1);
+        }
+        await Payment.findByIdAndUpdate(payment._id, {
+          $set: { 'metadata.transferError': `Lookup failed after ${MAX_TRANSFER_RETRIES} retries: ${lookupErr.message}`, 'metadata.transferAttempted': true, 'metadata.transferRetries': retryCount }
+        });
+        return false;
       }
     }
 
-    console.log(`[Transfer Balance] Adding ${amountSAR} SAR to ${user.email} (user_id: ${autocallsUserId})...`);
+    console.log(`[Transfer Balance] Adding ${amountSAR} SAR to ${user.email} (user_id: ${autocallsUserId})... ${retryCount > 0 ? `(retry ${retryCount})` : ''}`);
 
     const transferBody = {
       user_id: autocallsUserId,
@@ -588,35 +628,57 @@ async function transferBalanceToAutoCalls(payment) {
       data = JSON.parse(responseText);
     } catch (parseError) {
       console.error(`[Transfer Balance] ❌ Invalid JSON response: ${responseText.substring(0, 200)}`);
+      // ✅ إعادة المحاولة عند رد غير صالح
+      if (retryCount < MAX_TRANSFER_RETRIES) {
+        console.log(`[Transfer Balance] ⏳ Retry ${retryCount + 1}/${MAX_TRANSFER_RETRIES} in ${RETRY_DELAY_MS}ms...`);
+        await sleep(RETRY_DELAY_MS);
+        return transferBalanceToAutoCalls(payment, retryCount + 1);
+      }
       await Payment.findByIdAndUpdate(payment._id, {
-        $set: { 'metadata.transferError': `Invalid response: ${responseText.substring(0, 200)}`, 'metadata.transferAttempted': true }
+        $set: { 'metadata.transferError': `Invalid response after ${MAX_TRANSFER_RETRIES} retries: ${responseText.substring(0, 200)}`, 'metadata.transferAttempted': true, 'metadata.transferRetries': retryCount }
       });
-      return;
+      return false;
     }
 
     if (!response.ok) {
       const errorMsg = data.message || data.error || `AutoCalls transfer failed (${response.status})`;
       console.error(`[Transfer Balance] ❌ Failed: ${errorMsg}`, data);
       
+      // ✅ إعادة المحاولة عند فشل التحويل (أخطاء السيرفر فقط: 500+)
+      if (response.status >= 500 && retryCount < MAX_TRANSFER_RETRIES) {
+        console.log(`[Transfer Balance] ⏳ Retry ${retryCount + 1}/${MAX_TRANSFER_RETRIES} in ${RETRY_DELAY_MS}ms...`);
+        await sleep(RETRY_DELAY_MS);
+        return transferBalanceToAutoCalls(payment, retryCount + 1);
+      }
+
       await Payment.findByIdAndUpdate(payment._id, {
-        $set: { 'metadata.transferError': errorMsg, 'metadata.transferAttempted': true }
+        $set: { 'metadata.transferError': errorMsg, 'metadata.transferAttempted': true, 'metadata.transferRetries': retryCount }
       });
-      return;
+      return false;
     }
 
     // ✅ نجاح التحويل
     await Payment.findByIdAndUpdate(payment._id, {
-      $set: { 'metadata.transferSuccess': true, 'metadata.transferResponse': data }
+      $set: { 'metadata.transferSuccess': true, 'metadata.transferResponse': data, 'metadata.transferRetries': retryCount }
     });
 
-    console.log(`[Transfer Balance] ✅ Success: ${amountSAR} SAR → ${user.email} (user_id: ${autocallsUserId})`);
+    console.log(`[Transfer Balance] ✅ Success: ${amountSAR} SAR → ${user.email} (user_id: ${autocallsUserId})${retryCount > 0 ? ` after ${retryCount} retries` : ''}`);
+    return true;
 
   } catch (error) {
     console.error(`[Transfer Balance] ❌ Error: ${error.message}`);
     
+    // ✅ إعادة المحاولة عند أي خطأ غير متوقع
+    if (retryCount < MAX_TRANSFER_RETRIES) {
+      console.log(`[Transfer Balance] ⏳ Retry ${retryCount + 1}/${MAX_TRANSFER_RETRIES} in ${RETRY_DELAY_MS}ms...`);
+      await sleep(RETRY_DELAY_MS);
+      return transferBalanceToAutoCalls(payment, retryCount + 1);
+    }
+
     await Payment.findByIdAndUpdate(payment._id, {
-      $set: { 'metadata.transferError': error.message, 'metadata.transferAttempted': true }
+      $set: { 'metadata.transferError': `Failed after ${MAX_TRANSFER_RETRIES} retries: ${error.message}`, 'metadata.transferAttempted': true, 'metadata.transferRetries': retryCount }
     });
+    return false;
   }
 }
 

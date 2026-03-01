@@ -192,19 +192,23 @@ export default function BalancePage({ embedded = false }) {
               payment.id
             ).then(function(verifyRes) {
               if (verifyRes.status === 'paid') {
-                setTopupResult({ success: true });
+                // ✅ نتحقق من حالة التحويل الفعلية
+                if (verifyRes.transferStatus === 'failed') {
+                  setTopupResult({ success: false, message: verifyRes.message || (isAr ? 'تم الدفع لكن فشل تحويل الرصيد. تواصل مع الدعم.' : 'Payment received but balance transfer failed. Contact support.') });
+                } else {
+                  setTopupResult({ success: true });
+                }
                 setTopupStep('result');
                 setTimeout(function() { loadData(); }, 1000);
               } else {
-                setTopupResult({ success: false, message: verifyRes.message || 'حالة غير متوقعة' });
+                setTopupResult({ success: false, message: verifyRes.message || (isAr ? 'حالة غير متوقعة' : 'Unexpected status') });
                 setTopupStep('result');
               }
             }).catch(function(e) {
               console.error('Verify failed:', e);
-              // الدفع نجح عند مُيسّر — الـ webhook بيتكفل
-              setTopupResult({ success: true });
+              // ✅ لو التحقق فشل — نعرض فشل بدل نجاح كاذب
+              setTopupResult({ success: false, message: isAr ? 'فشل التحقق من الدفع. لو تم الخصم من حسابك، تواصل مع الدعم.' : 'Payment verification failed. If charged, contact support.' });
               setTopupStep('result');
-              setTimeout(function() { loadData(); }, 2000);
             });
           }, 100);
           return true;
