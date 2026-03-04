@@ -70,22 +70,22 @@ function StatusBadge({ status }) {
 }
 
 // ─── Type Badge ───────────────────────────────────────────────
-function TypeBadge({ type, t }) {
+function TypeBadge({ type }) {
   if (type === "outbound")
     return (
       <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-purple-500/10 text-purple-400">
-        <PhoneOutgoing className="w-3 h-3" /> {t('calls.outbound')}
+        <PhoneOutgoing className="w-3 h-3" /> صادرة
       </span>
     );
   if (type === "inbound")
     return (
       <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-blue-500/10 text-blue-400">
-        <PhoneIncoming className="w-3 h-3" /> {t('calls.inbound')}
+        <PhoneIncoming className="w-3 h-3" /> واردة
       </span>
     );
   return (
     <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-cyan-500/10 text-cyan-400">
-      <Globe className="w-3 h-3" /> {t('calls.web')}
+      <Globe className="w-3 h-3" /> ويب
     </span>
   );
 }
@@ -134,7 +134,7 @@ function CallModal({ call, onClose, isDark }) {
   const status = call.status || "unknown";
 
   const infoRows = [
-    { label: "النوع",          value: <TypeBadge type={type} t={t} /> },
+    { label: "النوع",          value: <TypeBadge type={type} /> },
     { label: "الحالة",         value: <StatusBadge status={status} /> },
     { label: "المدة",          value: fmtDuration(call.duration) },
     { label: "التاريخ",        value: `${fmtDate(call.created_at)} ${fmtTime(call.created_at)}` },
@@ -254,7 +254,7 @@ function CallModal({ call, onClose, isDark }) {
           {call.transcript && (
             <div className={`rounded-xl p-4 border ${isDark ? "bg-[#0a0a0b] border-[#1f1f23]" : "bg-gray-50 border-gray-200"}`}>
               <p className={`text-sm font-medium mb-3 flex items-center gap-2 ${isDark ? "text-gray-300" : "text-gray-700"}`}>
-                <FileText className="w-4 h-4 text-teal-500" /> {t('calls.transcript')}
+                <FileText className="w-4 h-4 text-teal-500" /> t('calls.transcript')
               </p>
               <p className={`text-sm whitespace-pre-wrap leading-relaxed ${isDark ? "text-gray-300" : "text-gray-600"}`} dir="auto">
                 {call.transcript}
@@ -270,8 +270,7 @@ function CallModal({ call, onClose, isDark }) {
             className={`w-full py-2.5 rounded-xl font-medium transition-colors ${
               isDark ? "bg-[#1a1a1d] text-white hover:bg-[#222225]" : "bg-gray-100 text-gray-900 hover:bg-gray-200"
             }`}
-            >{t('calls.close')}
-          </button>
+            >{t('calls.close')}</button>
 
         </div>
       </div>
@@ -645,7 +644,7 @@ export default function CallsPage() {
                         </td>
 
                         {/* Type */}
-                        <td className="px-5 py-4"><TypeBadge type={type} t={t} /></td>
+                        <td className="px-5 py-4"><TypeBadge type={type} /></td>
 
                         {/* Status */}
                         <td className="px-5 py-4"><StatusBadge status={call.status || "unknown"} /></td>
@@ -667,26 +666,15 @@ export default function CallsPage() {
 
                         {/* Action */}
                         <td className="px-5 py-4">
-                          <div className="flex items-center gap-2">
-                            {call.recording_url && (
-                              <audio
-                                controls
-                                src={call.recording_url}
-                                className="h-7"
-                                style={{ minWidth: 140, maxWidth: 200 }}
-                                onError={(e) => { e.target.style.display = 'none'; }}
-                              />
-                            )}
-                            <button
-                              onClick={() => setSelectedCall(call)}
-                              className={`p-2 rounded-lg transition-colors shrink-0 ${
-                                isDark ? "hover:bg-[#222225] text-gray-400 hover:text-white" : "hover:bg-gray-100 text-gray-500 hover:text-gray-900"
-                              }`}
-                              title={t('calls.viewDetails')}
-                            >
-                              <Eye className="w-4 h-4" />
-                            </button>
-                          </div>
+                          {call.recording_url && (
+                            <audio
+                              controls
+                              src={call.recording_url}
+                              className="h-7"
+                              style={{ minWidth: 140, maxWidth: 200 }}
+                              onError={(e) => { e.target.style.display = 'none'; }}
+                            />
+                          )}
                         </td>
                       </tr>
                     );
