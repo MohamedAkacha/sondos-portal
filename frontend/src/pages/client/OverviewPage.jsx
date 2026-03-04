@@ -135,31 +135,23 @@ export default function OverviewPage() {
         return leadDate.getTime() === today.getTime();
       });
 
-      // Calculate call stats
-      const answeredCalls = calls.filter(c => 
-        c.status === 'answered' || c.status === 'completed' || c.call_status === 'answered'
-      ).length;
-      
-      const missedCalls = calls.filter(c => 
-        c.status === 'missed' || c.status === 'no_answer' || c.call_status === 'missed'
-      ).length;
-      
-      const inboundCalls = calls.filter(c => 
-        c.direction === 'inbound' || c.type === 'incoming' || c.calls_direction === 'inbound'
-      ).length;
-      
-      const outboundCalls = calls.filter(c => 
-        c.direction === 'outbound' || c.type === 'outgoing' || c.calls_direction === 'outbound'
+      // Calculate call stats — using correct API field names
+      // API: status = 'completed' | 'ended' | 'ended_by_customer' | 'ended_by_assistant' | 'no-answer' | 'failed' | 'busy' | 'in-progress' | 'ringing' | 'initiated'
+      // API: type   = 'inbound' | 'outbound' | 'web'
+      const answeredCalls = calls.filter(c =>
+        ['completed', 'ended', 'ended_by_customer', 'ended_by_assistant'].includes(c.status)
       ).length;
 
+      const missedCalls = calls.filter(c =>
+        ['no-answer', 'failed', 'busy'].includes(c.status)
+      ).length;
+
+      const inboundCalls  = calls.filter(c => c.type === 'inbound').length;
+      const outboundCalls = calls.filter(c => c.type === 'outbound').length;
+
       // Today specific stats
-      const todayInbound = todayCalls.filter(c => 
-        c.direction === 'inbound' || c.type === 'incoming'
-      ).length;
-      
-      const todayOutbound = todayCalls.filter(c => 
-        c.direction === 'outbound' || c.type === 'outgoing'
-      ).length;
+      const todayInbound  = todayCalls.filter(c => c.type === 'inbound').length;
+      const todayOutbound = todayCalls.filter(c => c.type === 'outbound').length;
 
       // Active campaigns
       const activeCampaigns = campaigns.filter(c => 
@@ -340,11 +332,11 @@ export default function OverviewPage() {
               {recentCalls.map((call, i) => (
                 <ActivityItem 
                   key={call.id || i}
-                  icon={call.direction === 'outbound' || call.type === 'outgoing' ? PhoneOutgoing : PhoneIncoming}
-                  text={call.phone_number || call.phone || call.to || t('over.unknown')}
-                  time={formatTimeAgo(call.created_at || call.date, t, isAr)}
-                  status={call.status || call.call_status}
-                  color={call.direction === 'outbound' ? 'purple' : 'teal'}
+                  icon={call.type === 'outbound' ? PhoneOutgoing : PhoneIncoming}
+                  text={call.client_phone_number || t('over.unknown')}
+                  time={formatTimeAgo(call.created_at, t, isAr)}
+                  status={call.status}
+                  color={call.type === 'outbound' ? 'purple' : 'teal'}
                   isDark={isDark}
                 />
               ))}
@@ -365,21 +357,25 @@ export default function OverviewPage() {
                   className={`flex items-center gap-3 p-3 rounded-xl ${isDark ? 'bg-[#0a0a0b] hover:bg-[#0f0f10]' : 'bg-gray-50 hover:bg-gray-100'} transition-colors`}
                 >
                   <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                    assistant.calls_direction === 'outbound' ? 'bg-purple-500/10' : 'bg-teal-500/10'
+                    assistant.calls_direction === 'outbound' || assistant.direction === 'outbound'
+                      ? 'bg-purple-500/10' : 'bg-teal-500/10'
                   }`}>
-                    <Bot className={`w-5 h-5 ${assistant.calls_direction === 'outbound' ? 'text-purple-500' : 'text-teal-500'}`} />
+                    <Bot className={`w-5 h-5 ${
+                      assistant.calls_direction === 'outbound' || assistant.direction === 'outbound'
+                        ? 'text-purple-500' : 'text-teal-500'
+                    }`} />
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className={`font-medium truncate ${isDark ? 'text-white' : 'text-gray-900'}`}>
                       {assistant.name || assistant.assistant_name || `${t('over.assistant')} ${assistant.id}`}
                     </p>
                     <p className={`text-sm ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                      {assistant.language || '-'} • {assistant.calls_direction || 'inbound'}
+                      {assistant.language || '-'} • {assistant.calls_direction || assistant.direction || 'inbound'}
                     </p>
                   </div>
                   <span className={`px-2 py-1 rounded text-xs ${
-                    assistant.is_active || assistant.status === 'active' 
-                      ? 'bg-emerald-500/10 text-emerald-500' 
+                    assistant.is_active || assistant.status === 'active'
+                      ? 'bg-emerald-500/10 text-emerald-500'
                       : isDark ? 'bg-gray-700 text-gray-400' : 'bg-gray-200 text-gray-500'
                   }`}>
                     {assistant.is_active || assistant.status === 'active' ? t('over.active') : t('over.inactive')}
@@ -560,8 +556,10 @@ function ActivityItem({ icon: Icon, text, time, status, color, isDark }) {
       </div>
       {status && (
         <span className={`px-2 py-1 rounded text-xs ${
-          status === 'answered' || status === 'completed' ? 'bg-emerald-500/10 text-emerald-500' :
-          status === 'missed' || status === 'no_answer' ? 'bg-red-500/10 text-red-500' :
+          ['completed', 'ended', 'ended_by_customer', 'ended_by_assistant'].includes(status)
+            ? 'bg-emerald-500/10 text-emerald-500' :
+          ['no-answer', 'failed', 'busy'].includes(status)
+            ? 'bg-red-500/10 text-red-500' :
           isDark ? 'bg-gray-700 text-gray-400' : 'bg-gray-200 text-gray-500'
         }`}>
           {status}

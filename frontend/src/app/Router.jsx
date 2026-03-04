@@ -14,6 +14,7 @@ import RegisterPage from '@/pages/auth/RegisterPage';
 // Client pages
 import OverviewPage from '@/pages/client/OverviewPage';
 import DashboardPage from '@/pages/client/DashboardPage';
+import CallsPage from '@/pages/client/CallsPage';
 import LeadsPage from '@/pages/client/LeadsPage';
 import KnowledgePage from '@/pages/client/KnowledgePage';
 import SettingsPage from '@/pages/client/SettingsPage';
@@ -63,34 +64,35 @@ export default function Router() {
     <BrowserRouter>
       <Routes>
         {/* ── Auth routes (guests only) ── */}
-        <Route path="/login" element={<GuestOnly><LoginPage /></GuestOnly>} />
-        <Route path="/register" element={<GuestOnly><RegisterPage /></GuestOnly>} />
-        <Route path="/admin/login" element={<GuestOnly><AdminLoginPage /></GuestOnly>} />
+        <Route path="/login"        element={<GuestOnly><LoginPage /></GuestOnly>} />
+        <Route path="/register"     element={<GuestOnly><RegisterPage /></GuestOnly>} />
+        <Route path="/admin/login"  element={<GuestOnly><AdminLoginPage /></GuestOnly>} />
 
         {/* ── Client routes ── */}
         <Route element={<RequireAuth><AppLayout /></RequireAuth>}>
-          <Route index element={<OverviewPage />} />
-          <Route path="dashboard" element={<DashboardPage />} />
-          <Route path="leads" element={<LeadsPage />} />
-          <Route path="knowledge" element={<KnowledgePage />} />
-          <Route path="assistant" element={<AssistantSettingsPage />} />
-          <Route path="integrations" element={<IntegrationsPage />} />
-          <Route path="settings" element={<SettingsPage />} />
-          <Route path="payment" element={<PaymentPage />} />
-          <Route path="payment/callback" element={<PaymentCallbackPage />} />
-          <Route path="payment/history" element={<PaymentHistoryPage />} />
+          <Route index                    element={<OverviewPage />} />
+          <Route path="dashboard"         element={<DashboardPage />} />
+          <Route path="calls"             element={<CallsPage />} />
+          <Route path="leads"             element={<LeadsPage />} />
+          <Route path="knowledge"         element={<KnowledgePage />} />
+          <Route path="assistant"         element={<AssistantSettingsPage />} />
+          <Route path="integrations"      element={<IntegrationsPage />} />
+          <Route path="settings"          element={<SettingsPage />} />
+          <Route path="payment"           element={<PaymentPage />} />
+          <Route path="payment/callback"  element={<PaymentCallbackPage />} />
+          <Route path="payment/history"   element={<PaymentHistoryPage />} />
 
           {/* Redirects: old routes → settings tabs */}
-          <Route path="balance" element={<Navigate to="/settings?tab=balance" replace />} />
-          <Route path="api-settings" element={<Navigate to="/settings?tab=api" replace />} />
+          <Route path="balance"      element={<Navigate to="/settings?tab=balance" replace />} />
+          <Route path="api-settings" element={<Navigate to="/settings?tab=api"     replace />} />
         </Route>
 
         {/* ── Admin routes ── */}
         <Route path="admin" element={<RequireAdmin><AdminLayout /></RequireAdmin>}>
-          <Route index element={<AdminDashboardPage />} />
-          <Route path="clients" element={<AdminClientsPage />} />
-          <Route path="plans" element={<AdminPlansPage />} />
-          <Route path="reports" element={<AdminReportsPage />} />
+          <Route index           element={<AdminDashboardPage />} />
+          <Route path="clients"  element={<AdminClientsPage />} />
+          <Route path="plans"    element={<AdminPlansPage />} />
+          <Route path="reports"  element={<AdminReportsPage />} />
           <Route path="settings" element={<AdminSettingsPage />} />
         </Route>
 
