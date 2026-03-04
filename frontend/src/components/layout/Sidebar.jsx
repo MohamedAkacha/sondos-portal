@@ -15,7 +15,7 @@ export default function Sidebar({ onLogout, user }) {
   const menuItems = [
     { path: '/',            icon: Home,     label: t('sidebar.overview')     },
     { path: '/dashboard',   icon: BarChart3, label: t('sidebar.dashboard')  },
-    { path: '/calls',       icon: Phone,    label: 'المكالمات'               },
+    { path: '/calls',       icon: Phone,    label: t('sidebar.calls')        },
     { path: '/leads',       icon: Users,    label: t('sidebar.leads')        },
     { path: '/knowledge',   icon: BookOpen, label: t('sidebar.knowledge')    },
     { path: '/assistant',   icon: Bot,      label: t('sidebar.assistant')    },

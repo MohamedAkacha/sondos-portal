@@ -7,6 +7,7 @@ import {
   Play, Pause, Volume2
 } from "lucide-react";
 import { useTheme } from "@/hooks/useTheme";
+import { useLanguage } from "@/hooks/useLanguage";
 import { callsAPI } from "@/services/api/sondosAPI";
 
 // ─── Helpers ──────────────────────────────────────────────────
@@ -162,7 +163,7 @@ function CallModal({ call, onClose, isDark }) {
             </div>
             <div>
               <p className={`font-bold ${isDark ? "text-white" : "text-gray-900"}`} dir="ltr">{phone}</p>
-              <p className={`text-xs ${isDark ? "text-gray-500" : "text-gray-400"}`}>مكالمة #{call.id}</p>
+              <p className={`text-xs ${isDark ? "text-gray-500" : "text-gray-400"}`}>{`${t('calls.callId')} #${call.id}`}</p>
             </div>
           </div>
           <button
@@ -190,7 +191,7 @@ function CallModal({ call, onClose, isDark }) {
           {call.recording_url && (
             <div className={`rounded-xl p-4 border ${isDark ? "bg-[#0a0a0b] border-[#1f1f23]" : "bg-gray-50 border-gray-200"}`}>
               <p className={`text-sm font-medium mb-3 flex items-center gap-2 ${isDark ? "text-gray-300" : "text-gray-700"}`}>
-                <Volume2 className="w-4 h-4 text-teal-500" /> التسجيل الصوتي
+                <Volume2 className="w-4 h-4 text-teal-500" /> {t('calls.recording')}
               </p>
               <div className="flex items-center gap-3">
                 <button
@@ -207,7 +208,7 @@ function CallModal({ call, onClose, isDark }) {
           {/* Variables */}
           {call.variables && Object.keys(call.variables).length > 0 && (
             <div className={`rounded-xl p-4 border ${isDark ? "bg-[#0a0a0b] border-[#1f1f23]" : "bg-gray-50 border-gray-200"}`}>
-              <p className={`text-sm font-medium mb-3 ${isDark ? "text-gray-300" : "text-gray-700"}`}>المتغيرات</p>
+              <p className={`text-sm font-medium mb-3 ${isDark ? "text-gray-300" : "text-gray-700"}`}>{t('calls.variables')}</p>
               <div className="grid grid-cols-2 gap-2">
                 {Object.entries(call.variables).map(([k, v]) => (
                   <div key={k} className={`p-2 rounded-lg ${isDark ? "bg-[#111113]" : "bg-white"}`}>
@@ -222,11 +223,11 @@ function CallModal({ call, onClose, isDark }) {
           {/* Evaluation */}
           {call.evaluation && Object.keys(call.evaluation).filter(k => call.evaluation[k] != null).length > 0 && (
             <div className={`rounded-xl p-4 border ${isDark ? "bg-[#0a0a0b] border-[#1f1f23]" : "bg-gray-50 border-gray-200"}`}>
-              <p className={`text-sm font-medium mb-3 ${isDark ? "text-gray-300" : "text-gray-700"}`}>تقييم المكالمة</p>
+              <p className={`text-sm font-medium mb-3 ${isDark ? "text-gray-300" : "text-gray-700"}`}>{t('calls.evaluation')}</p>
               <div className="grid grid-cols-3 gap-2">
                 {call.evaluation.sentiment && (
                   <div className={`p-2 rounded-lg text-center ${isDark ? "bg-[#111113]" : "bg-white"}`}>
-                    <p className={`text-xs mb-1 ${isDark ? "text-gray-500" : "text-gray-400"}`}>المشاعر</p>
+                    <p className={`text-xs mb-1 ${isDark ? "text-gray-500" : "text-gray-400"}`}>{t('calls.sentiment')}</p>
                     <p className={`text-sm font-medium ${
                       call.evaluation.sentiment === "positive" ? "text-emerald-500" :
                       call.evaluation.sentiment === "negative" ? "text-red-500" : isDark ? "text-white" : "text-gray-900"
@@ -235,13 +236,13 @@ function CallModal({ call, onClose, isDark }) {
                 )}
                 {call.evaluation.outcome && (
                   <div className={`p-2 rounded-lg text-center ${isDark ? "bg-[#111113]" : "bg-white"}`}>
-                    <p className={`text-xs mb-1 ${isDark ? "text-gray-500" : "text-gray-400"}`}>النتيجة</p>
+                    <p className={`text-xs mb-1 ${isDark ? "text-gray-500" : "text-gray-400"}`}>{t('calls.outcome')}</p>
                     <p className={`text-sm font-medium ${isDark ? "text-white" : "text-gray-900"}`}>{call.evaluation.outcome}</p>
                   </div>
                 )}
                 {call.evaluation.score != null && (
                   <div className={`p-2 rounded-lg text-center ${isDark ? "bg-[#111113]" : "bg-white"}`}>
-                    <p className={`text-xs mb-1 ${isDark ? "text-gray-500" : "text-gray-400"}`}>النقاط</p>
+                    <p className={`text-xs mb-1 ${isDark ? "text-gray-500" : "text-gray-400"}`}>{t('calls.score')}</p>
                     <p className="text-sm font-bold text-teal-500">{call.evaluation.score}/10</p>
                   </div>
                 )}
@@ -253,7 +254,7 @@ function CallModal({ call, onClose, isDark }) {
           {call.transcript && (
             <div className={`rounded-xl p-4 border ${isDark ? "bg-[#0a0a0b] border-[#1f1f23]" : "bg-gray-50 border-gray-200"}`}>
               <p className={`text-sm font-medium mb-3 flex items-center gap-2 ${isDark ? "text-gray-300" : "text-gray-700"}`}>
-                <FileText className="w-4 h-4 text-teal-500" /> نص المحادثة
+                <FileText className="w-4 h-4 text-teal-500" /> t('calls.transcript')
               </p>
               <p className={`text-sm whitespace-pre-wrap leading-relaxed ${isDark ? "text-gray-300" : "text-gray-600"}`} dir="auto">
                 {call.transcript}
@@ -269,9 +270,8 @@ function CallModal({ call, onClose, isDark }) {
             className={`w-full py-2.5 rounded-xl font-medium transition-colors ${
               isDark ? "bg-[#1a1a1d] text-white hover:bg-[#222225]" : "bg-gray-100 text-gray-900 hover:bg-gray-200"
             }`}
-          >
-            إغلاق
-          </button>
+            >{t('calls.close')}</button>
+
         </div>
       </div>
     </div>
@@ -337,6 +337,7 @@ function Pagination({ currentPage, lastPage, onPageChange, isDark }) {
 // ─── Main Page ────────────────────────────────────────────────
 export default function CallsPage() {
   const { isDark } = useTheme();
+  const { t, isAr } = useLanguage();
 
   const [calls, setCalls]           = useState([]);
   const [stats, setStats]           = useState({ total: 0, answered: 0, missed: 0, avgDuration: 0, answerRate: 0, inbound: 0, outbound: 0 });
@@ -425,36 +426,36 @@ export default function CallsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className={`text-3xl font-bold ${isDark ? "text-white" : "text-gray-900"}`}>
-            المكالمات
+            {t('calls.title')}
           </h1>
           <p className={`mt-1 ${isDark ? "text-gray-400" : "text-gray-500"}`}>
-            سجل جميع المكالمات الواردة والصادرة
+            {t('calls.subtitle')}
           </p>
         </div>
         <button
-          onClick={() => loadCalls(currentPage)}
-          disabled={loading}
-          className={`px-4 py-2.5 rounded-xl border flex items-center gap-2 transition-colors ${
-            isDark
-              ? "bg-[#1a1a1d] border-[#1f1f23] text-gray-400 hover:text-white"
-              : "bg-white border-gray-200 text-gray-600 hover:text-gray-900"
-          }`}
-        >
-          <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
-          تحديث
-        </button>
+            onClick={() => loadCalls(currentPage)}
+            disabled={loading}
+            className={`px-4 py-2.5 rounded-xl border flex items-center gap-2 transition-colors ${
+              isDark
+                ? "bg-[#1a1a1d] border-[#1f1f23] text-gray-400 hover:text-white"
+                : "bg-white border-gray-200 text-gray-600 hover:text-gray-900"
+            }`}
+          >
+            <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
+            {t('calls.refresh') || "تحديث"}
+          </button>
       </div>
 
       {/* ── KPI Cards ── */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-        <KPICard icon={Phone}       label="إجمالي المكالمات" value={stats.total.toLocaleString()} color="cyan"    isDark={isDark} />
-        <KPICard icon={Check}       label="تم الرد"          value={stats.answered}                color="emerald" isDark={isDark} />
-        <KPICard icon={PhoneOff}    label="فائتة"            value={stats.missed}                  color="red"     isDark={isDark} />
-        <KPICard icon={TrendingUp}  label="معدل الرد"        value={`${stats.answerRate}%`}        color="teal"    isDark={isDark} />
-        <KPICard icon={Clock}       label="متوسط المدة"      value={fmtDuration(stats.avgDuration)} color="blue"   isDark={isDark} />
+        <KPICard icon={Phone}       label={t('calls.totalCalls')} value={stats.total.toLocaleString()} color="cyan"    isDark={isDark} />
+        <KPICard icon={Check}       label={t('calls.answered')}          value={stats.answered}                color="emerald" isDark={isDark} />
+        <KPICard icon={PhoneOff}    label={t('calls.missed')}            value={stats.missed}                  color="red"     isDark={isDark} />
+        <KPICard icon={TrendingUp}  label={t('calls.answerRate')}        value={`${stats.answerRate}%`}        color="teal"    isDark={isDark} />
+        <KPICard icon={Clock}       label={t('calls.avgDuration')}      value={fmtDuration(stats.avgDuration)} color="blue"   isDark={isDark} />
         <KPICard
           icon={PhoneIncoming}
-          label="واردة / صادرة"
+          label={t('calls.inOutbound')}
           value={`${stats.inbound} / ${stats.outbound}`}
           color="purple"
           isDark={isDark}
@@ -469,7 +470,7 @@ export default function CallsPage() {
             <Search className={`absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 ${isDark ? "text-gray-500" : "text-gray-400"}`} />
             <input
               type="text"
-              placeholder="بحث برقم الهاتف..."
+              placeholder={t('calls.searchPlaceholder')}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className={`w-full pl-4 pr-10 py-2.5 rounded-xl border text-sm ${
@@ -480,22 +481,22 @@ export default function CallsPage() {
             />
           </div>
           <button
-            type="submit"
-            className="px-5 py-2.5 bg-teal-500 hover:bg-teal-400 text-white rounded-xl text-sm font-medium transition-colors"
-          >
-            بحث
-          </button>
-          <button
-            type="button"
-            onClick={handleReset}
-            className={`px-4 py-2.5 rounded-xl text-sm border transition-colors ${
-              isDark
-                ? "border-[#1f1f23] text-gray-400 hover:text-white hover:bg-[#1a1a1d]"
-                : "border-gray-200 text-gray-500 hover:text-gray-900 hover:bg-gray-50"
-            }`}
-          >
-            إعادة تعيين
-          </button>
+              type="submit"
+            >
+              {t('calls.search') || "بحث"}
+            </button>
+
+            <button
+              type="button"
+              onClick={handleReset}
+              className={`px-4 py-2.5 rounded-xl text-sm border transition-colors ${
+                isDark
+                  ? "border-[#1f1f23] text-gray-400 hover:text-white hover:bg-[#1a1a1d]"
+                  : "border-gray-200 text-gray-500 hover:text-gray-900 hover:bg-gray-50"
+              }`}
+            >
+              {t('calls.reset') || "إعادة تعيين"}
+            </button>
         </form>
 
         {/* Filter row */}
@@ -508,17 +509,17 @@ export default function CallsPage() {
               isDark ? "bg-[#0a0a0b] border-[#1f1f23] text-white" : "bg-gray-50 border-gray-200 text-gray-900"
             }`}
           >
-            <option value="all">جميع الحالات</option>
-            <option value="completed">مكتملة</option>
-            <option value="ended">منتهية</option>
-            <option value="ended_by_customer">أنهاها العميل</option>
-            <option value="ended_by_assistant">أنهاها المساعد</option>
-            <option value="no-answer">لم يرد</option>
-            <option value="failed">فشلت</option>
-            <option value="busy">مشغول</option>
-            <option value="in-progress">جارية</option>
-            <option value="ringing">يرن</option>
-            <option value="initiated">بدأت</option>
+            <option value="all">{t('calls.allStatuses')}</option>
+            <option value="completed">{t('calls.completed')}</option>
+            <option value="ended">{t('calls.ended')}</option>
+            <option value="ended_by_customer">{t('calls.endedByCustomer')}</option>
+            <option value="ended_by_assistant">{t('calls.endedByAssistant')}</option>
+            <option value="no-answer">{t('calls.noAnswer')}</option>
+            <option value="failed">{t('calls.failed')}</option>
+            <option value="busy">{t('calls.busy')}</option>
+            <option value="in-progress">{t('calls.inProgress')}</option>
+            <option value="ringing">{t('calls.ringing')}</option>
+            <option value="initiated">{t('calls.initiated')}</option>
           </select>
 
           {/* Type */}
@@ -529,10 +530,10 @@ export default function CallsPage() {
               isDark ? "bg-[#0a0a0b] border-[#1f1f23] text-white" : "bg-gray-50 border-gray-200 text-gray-900"
             }`}
           >
-            <option value="all">جميع الأنواع</option>
-            <option value="inbound">واردة</option>
-            <option value="outbound">صادرة</option>
-            <option value="web">ويب</option>
+            <option value="all">{t('calls.allTypes')}</option>
+            <option value="inbound">{t('calls.inbound')}</option>
+            <option value="outbound">{t('calls.outbound')}</option>
+            <option value="web">{t('calls.web')}</option>
           </select>
 
           {/* Date From */}
@@ -558,7 +559,7 @@ export default function CallsPage() {
           />
 
           <span className={`text-sm mr-auto ${isDark ? "text-gray-500" : "text-gray-400"}`}>
-            {total.toLocaleString()} مكالمة إجمالاً
+            {total.toLocaleString()} {t('calls.totalLabel')}
           </span>
         </div>
       </div>
@@ -575,27 +576,29 @@ export default function CallsPage() {
 
       {/* ── Table ── */}
       <div className={`rounded-2xl border overflow-hidden ${isDark ? "bg-[#111113] border-[#1f1f23]" : "bg-white border-gray-200"}`}>
-        {loading ? (
-          <div className="flex items-center justify-center py-24">
-            <Loader2 className="w-8 h-8 animate-spin text-teal-500" />
-          </div>
-        ) : calls.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-24 gap-3">
-            <Phone className={`w-14 h-14 ${isDark ? "text-gray-700" : "text-gray-300"}`} />
-            <p className={`text-lg font-medium ${isDark ? "text-gray-500" : "text-gray-400"}`}>
-              لا توجد مكالمات
-            </p>
-            <p className={`text-sm ${isDark ? "text-gray-600" : "text-gray-400"}`}>
-              جرّب تغيير الفلاتر أو التاريخ
-            </p>
-          </div>
-        ) : (
-          <>
-            <div className="overflow-x-auto">
-              <table className="w-full">
+  {loading ? (
+    <div className="flex items-center justify-center py-24">
+      <Loader2 className="w-8 h-8 animate-spin text-teal-500" />
+    </div>
+  ) : calls.length === 0 ? (
+    <div className="flex flex-col items-center justify-center py-24 gap-3">
+      <Phone className={`w-14 h-14 ${isDark ? "text-gray-700" : "text-gray-300"}`} />
+
+      <p className={`text-lg font-medium ${isDark ? "text-gray-500" : "text-gray-400"}`}>
+        {t('calls.noCalls') || "لا توجد مكالمات"}
+      </p>
+
+      <p className={`text-sm ${isDark ? "text-gray-600" : "text-gray-400"}`}>
+        {t('calls.noCallsHint') || "جرّب تغيير الفلاتر أو التاريخ"}
+      </p>
+    </div>
+  ) : (
+    <>
+      <div className="overflow-x-auto">
+        <table className="w-full">
                 <thead>
                   <tr className={`border-b ${isDark ? "border-[#1f1f23]" : "border-gray-200"}`}>
-                    {["رقم العميل", "النوع", "الحالة", "المساعد", "المدة", "التاريخ", ""].map((h, i) => (
+                    {[t('calls.phone'), t('calls.type'), t('calls.status'), t('calls.assistant'), t('calls.duration'), t('calls.date'), ''].map((h, i) => (
                       <th
                         key={i}
                         className={`text-right px-5 py-4 text-xs font-semibold uppercase tracking-wider ${
@@ -668,7 +671,7 @@ export default function CallsPage() {
                             className={`p-2 rounded-lg transition-colors ${
                               isDark ? "hover:bg-[#222225] text-gray-400 hover:text-white" : "hover:bg-gray-100 text-gray-500 hover:text-gray-900"
                             }`}
-                            title="عرض التفاصيل"
+                            title="{t('calls.viewDetails')}"
                           >
                             <Eye className="w-4 h-4" />
                           </button>
@@ -681,18 +684,18 @@ export default function CallsPage() {
             </div>
 
             {/* Pagination */}
+            {/* Pagination */}
             <div className={`px-5 py-4 border-t ${isDark ? "border-[#1f1f23]" : "border-gray-200"}`}>
-              <div className="flex items-center justify-between">
-                <p className={`text-sm ${isDark ? "text-gray-500" : "text-gray-400"}`}>
-                  صفحة {currentPage} من {lastPage} — {total.toLocaleString()} مكالمة
-                </p>
-                <Pagination
-                  currentPage={currentPage}
-                  lastPage={lastPage}
-                  onPageChange={handlePageChange}
-                  isDark={isDark}
-                />
-              </div>
+              <p className={`text-sm ${isDark ? "text-gray-500" : "text-gray-400"}`}>
+                {t('calls.page')} {currentPage} {t('calls.of')} {lastPage} — {total.toLocaleString()} {t('calls.callsCount')}
+              </p>
+
+              <Pagination
+                currentPage={currentPage}
+                lastPage={lastPage}
+                onPageChange={handlePageChange}
+                isDark={isDark}
+              />
             </div>
           </>
         )}
