@@ -5,6 +5,7 @@ const Payment = require('../models/Payment');
 const Subscription = require('../models/Subscription');
 const Notification = require('../models/Notification');
 const TokenBlacklist = require('../models/TokenBlacklist');
+const FlowConfig = require('../models/FlowConfig');
 const { generateTokenPair, verifyRefreshToken, generateAccessToken } = require('../utils/token');
 const { registerOnAutoCalls, setupClientWithPlan } = require('../utils/autocalls');
 const moyasar = require('../utils/moyasar');
@@ -184,6 +185,24 @@ exports.registerWithPayment = async (req, res) => {
         type: 'success'
       });
     } catch (_) {}
+
+    // ── 8.5. Seed FlowConfig from plan automations ──
+    try {
+      if (plan.automations && plan.automations.length > 0) {
+        const flowDocs = plan.automations.map(auto => ({
+          userId: user._id,
+          flowName: auto.name,
+          flowKey: auto.key,
+          description: auto.description || '',
+          isEnabled: true,
+          planCode: plan.planCode || resolvedPlanCode,
+        }));
+        await FlowConfig.insertMany(flowDocs);
+        console.log(`[RegisterWithPayment] ✅ Seeded ${flowDocs.length} flows for ${email}`);
+      }
+    } catch (flowErr) {
+      console.error('[RegisterWithPayment] Flow seed warning:', flowErr.message);
+    }
 
     // ── 9. Return tokens ──
     const tokens = generateTokenPair(user._id);

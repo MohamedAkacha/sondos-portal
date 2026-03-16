@@ -14,6 +14,7 @@ const adminRoutes = require('./routes/admin.routes');
 const notificationRoutes = require('./routes/notification.routes');
 const sondosRoutes = require('./routes/sondos.routes');
 const paymentRoutes = require('./routes/payment.routes');
+const livekitRoutes = require('./routes/livekit.routes');
 const publicRoutes = require('./routes/public.routes');
 
 const app = express();
@@ -50,6 +51,17 @@ app.use(cors({
 // ==================== Body Parsing ====================
 // Raw body for Moyasar webhook signature verification
 app.use('/api/payments/webhook', express.raw({ type: 'application/json' }), (req, res, next) => {
+  req.rawBody = req.body.toString('utf8');
+  try {
+    req.body = JSON.parse(req.rawBody);
+  } catch (e) {
+    // body already parsed
+  }
+  next();
+});
+
+// Raw body for LiveKit webhook signature verification
+app.use('/api/livekit/webhook', express.raw({ type: 'application/json' }), (req, res, next) => {
   req.rawBody = req.body.toString('utf8');
   try {
     req.body = JSON.parse(req.rawBody);
@@ -101,6 +113,9 @@ app.use('/api/sondos', sondosRoutes);
 
 // Payment routes (Moyasar)
 app.use('/api/payments', paymentRoutes);
+
+// LiveKit routes (Voice Agent — Token + Status)
+app.use('/api/livekit', livekitRoutes);
 
 // Public routes (external systems — API Key auth, no user token)
 app.use('/api/public', publicRoutes);

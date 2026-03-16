@@ -30,4 +30,13 @@ router.put('/automation', [
 // Full API key (for automation integration display)
 router.get('/api-key', userCtrl.getFullApiKey);
 
+// My Plan — تفاصيل باقة المستخدم
+router.get('/my-plan', userCtrl.getMyPlan);
+
+// My Flows — الأتمتة الخاصة بالمستخدم
+router.get('/my-flows', userCtrl.getMyFlows);
+router.put('/my-flows/:flowId/toggle', [
+  body('enabled').isBoolean().withMessage('يرجى إرسال قيمة صحيحة (true أو false)')
+], userCtrl.toggleFlow);
+
 module.exports = router;

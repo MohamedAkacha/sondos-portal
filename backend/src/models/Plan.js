@@ -89,7 +89,14 @@ const planSchema = new mongoose.Schema({
   isActive: {
     type: Boolean,
     default: true
-  }
+  },
+  // الأتمتة المتاحة في هذه الباقة
+  // تُنسخ كـ FlowConfig لكل عميل جديد عند التسجيل
+  automations: [{
+    name: { type: String, required: true },       // اسم الأتمتة بالعربي
+    key: { type: String, required: true },         // معرّف فريد مختصر
+    description: { type: String, default: '' },    // وصف مختصر
+  }]
 }, {
   timestamps: true
 });

@@ -29,6 +29,10 @@ const PLANS = [
     color: 'orange',
     icon: 'zap',
     isPopular: false,
+    automations: [
+      { name: 'حملات الإعلانات الطبية', key: 'ads_medical', description: 'اتصال صادر لعرض العروض الطبية الجاهزة' },
+      { name: 'Telesales طبي', key: 'telesales_medical', description: 'مكالمات مبيعات لتقديم عروض طبية مباشرة' },
+    ],
   },
   {
     name: 'الباقة الفضية',
@@ -52,6 +56,11 @@ const PLANS = [
     color: 'gray',
     icon: 'star',
     isPopular: false,
+    automations: [
+      { name: 'حملات الإعلانات الطبية', key: 'ads_medical', description: 'اتصال صادر لعرض العروض الطبية الجاهزة' },
+      { name: 'Telesales طبي', key: 'telesales_medical', description: 'مكالمات مبيعات لتقديم عروض طبية مباشرة' },
+      { name: 'المتابعة الدورية والتجديد', key: 'followup_renewal', description: 'متابعة العملاء السابقين وتجديد الخدمات' },
+    ],
   },
   {
     name: 'الباقة الذهبية',
@@ -75,6 +84,12 @@ const PLANS = [
     color: 'yellow',
     icon: 'crown',
     isPopular: true,
+    automations: [
+      { name: 'حملات الإعلانات الطبية', key: 'ads_medical', description: 'اتصال صادر لعرض العروض الطبية الجاهزة' },
+      { name: 'Telesales طبي', key: 'telesales_medical', description: 'مكالمات مبيعات لتقديم عروض طبية مباشرة' },
+      { name: 'المتابعة الدورية والتجديد', key: 'followup_renewal', description: 'متابعة العملاء السابقين وتجديد الخدمات' },
+      { name: 'زيادة الخدمات (Upselling)', key: 'upselling', description: 'اقتراح خدمات إضافية للعملاء الحاليين' },
+    ],
   },
 ];
 

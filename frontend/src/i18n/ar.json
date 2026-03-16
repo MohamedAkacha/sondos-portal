@@ -47,7 +47,9 @@
     "planEnterprise": "باقة المؤسسات",
     "planBusiness": "باقة الأعمال",
     "apiSettings": "إعدادات API",
-    "calls": "المكالمات"
+    "calls": "المكالمات",
+    "testAgent": "اختبار المساعد",
+    "myPlan": "باقتي"
   },
   "header": {
     "search": "بحث...",

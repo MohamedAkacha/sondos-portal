@@ -17,3 +17,10 @@ services:
     depends_on:
       - backend
     restart: unless-stopped
+
+  # LiveKit Voice Agent Worker (Python)
+  agent:
+    build: ./sondos-agent
+    container_name: sondos_agent
+    env_file: ./sondos-agent/.env
+    restart: unless-stopped

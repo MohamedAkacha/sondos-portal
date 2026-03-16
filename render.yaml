@@ -1,9 +1,13 @@
 # ══════════════════════════════════════════════════════════
-# Sondos AI Portal — Render (Single Service)
-# Backend serves API + Frontend from same server
+# Sondos AI Portal — Render Deployment
+# Service 1: Web (Node.js) — Backend API + Frontend
+# Service 2: Background Worker (Python) — LiveKit Voice Agent
 # ══════════════════════════════════════════════════════════
 
 services:
+  # ════════════════════════════════════════════════════════
+  # 1. Web Service — Portal (Backend + Frontend)
+  # ════════════════════════════════════════════════════════
   - type: web
     name: sondos-portal
     runtime: node
@@ -33,10 +37,54 @@ services:
       - key: SETUP_SERVICE_URL
         value: https://siyadah-whatsapp-saas.onrender.com
 
-      # ✅ Moyasar Payment Gateway — أضف المفاتيح الحقيقية (Live) في لوحة تحكم Render
+      # Moyasar Payment Gateway
       - key: MOYASAR_PUBLISHABLE_KEY
         sync: false
       - key: MOYASAR_SECRET_KEY
         sync: false
       - key: MOYASAR_WEBHOOK_SECRET
+        sync: false
+
+      # LiveKit — Token Generation (Backend)
+      - key: LIVEKIT_URL
+        sync: false
+      - key: LIVEKIT_API_KEY
+        sync: false
+      - key: LIVEKIT_API_SECRET
+        sync: false
+
+      # Agent Secret (shared between backend and agent worker)
+      - key: SONDOS_AGENT_SECRET
+        sync: false
+
+  # ════════════════════════════════════════════════════════
+  # 2. Background Worker — LiveKit Voice Agent (Python)
+  # ════════════════════════════════════════════════════════
+  - type: worker
+    name: sondos-agent
+    runtime: python
+    rootDir: sondos-agent
+    buildCommand: pip install -r requirements.txt
+    startCommand: python agent.py start
+    envVars:
+      # LiveKit Cloud
+      - key: LIVEKIT_URL
+        sync: false
+      - key: LIVEKIT_API_KEY
+        sync: false
+      - key: LIVEKIT_API_SECRET
+        sync: false
+
+      # Deepgram (STT — Speech to Text)
+      - key: DEEPGRAM_API_KEY
+        sync: false
+
+      # OpenAI (LLM + TTS)
+      - key: OPENAI_API_KEY
+        sync: false
+
+      # Sondos Backend (for saving transcript)
+      - key: SONDOS_BACKEND_URL
+        sync: false
+      - key: SONDOS_AGENT_SECRET
         sync: false

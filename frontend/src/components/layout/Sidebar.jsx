@@ -1,7 +1,7 @@
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Home, BarChart3, Users, Phone,
-  BookOpen, Link2, Settings, LogOut, Zap, Bot, CreditCard
+  BookOpen, Link2, Settings, LogOut, Zap, Bot, CreditCard, Mic, Crown
 } from 'lucide-react';
 import { useTheme } from '@/hooks/useTheme';
 import { useLanguage } from '@/hooks/useLanguage';
@@ -21,7 +21,9 @@ export default function Sidebar({ onLogout, user }) {
     { path: '/assistant',   icon: Bot,      label: t('sidebar.assistant')    },
     { path: '/integrations',icon: Link2,    label: t('sidebar.integrations') },
     { path: '/payment',     icon: CreditCard,label: t('sidebar.payment')    },
+    { path: '/my-plan',     icon: Crown,     label: t('sidebar.myPlan') || 'باقتي' },
     { path: '/settings',    icon: Settings, label: t('sidebar.settings')     },
+    { path: '/test-agent',  icon: Mic,      label: t('sidebar.testAgent')    },
   ];
 
   const userName    = user?.name || user?.companyName || user?.email?.split('@')[0] || t('sidebar.defaultUser');

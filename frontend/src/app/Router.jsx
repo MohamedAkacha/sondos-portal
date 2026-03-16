@@ -23,6 +23,8 @@ import AssistantSettingsPage from '@/pages/client/AssistantSettingsPage';
 import PaymentPage from '@/pages/client/PaymentPage';
 import PaymentCallbackPage from '@/pages/client/PaymentCallbackPage';
 import PaymentHistoryPage from '@/pages/client/PaymentHistoryPage';
+import TestAgentPage from '@/pages/client/TestAgentPage';
+import MyPlanPage from '@/pages/client/MyPlanPage';
 
 // Admin pages
 import AdminDashboardPage from '@/pages/admin/AdminDashboardPage';
@@ -78,9 +80,11 @@ export default function Router() {
           <Route path="assistant"         element={<AssistantSettingsPage />} />
           <Route path="integrations"      element={<IntegrationsPage />} />
           <Route path="settings"          element={<SettingsPage />} />
+          <Route path="my-plan"           element={<MyPlanPage />} />
           <Route path="payment"           element={<PaymentPage />} />
           <Route path="payment/callback"  element={<PaymentCallbackPage />} />
           <Route path="payment/history"   element={<PaymentHistoryPage />} />
+          <Route path="test-agent"        element={<TestAgentPage />} />
 
           {/* Redirects: old routes → settings tabs */}
           <Route path="balance"      element={<Navigate to="/settings?tab=balance" replace />} />
