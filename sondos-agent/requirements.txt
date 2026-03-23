@@ -6,8 +6,8 @@ livekit-plugins-deepgram>=0.7.0,<1.0.0
 livekit-plugins-openai>=0.10.0,<1.0.0
 livekit-plugins-silero>=0.7.0,<1.0.0
 
-# HTTP client — pinned to avoid WebSocket bug in 3.11+
-aiohttp>=3.9.0,<3.11.0
+# HTTP client — pinned to exact working version
+aiohttp==3.9.5
 
 # Environment variables
 python-dotenv>=1.0.0
