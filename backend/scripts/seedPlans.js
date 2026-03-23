@@ -29,9 +29,12 @@ const PLANS = [
     color: 'orange',
     icon: 'zap',
     isPopular: false,
+    // PLN-001: 4 assistants + 4 flows (feten_plan)
     automations: [
       { name: 'حملات الإعلانات الطبية', key: 'ads_medical', description: 'اتصال صادر لعرض العروض الطبية الجاهزة' },
       { name: 'Telesales طبي', key: 'telesales_medical', description: 'مكالمات مبيعات لتقديم عروض طبية مباشرة' },
+      { name: 'المتابعة الدورية والتجديد', key: 'followup_renewal', description: 'متابعة العملاء السابقين وتجديد الخدمات' },
+      { name: 'زيادة الخدمات (Upselling)', key: 'upselling', description: 'اقتراح خدمات إضافية للعملاء الحاليين' },
     ],
   },
   {
@@ -56,10 +59,14 @@ const PLANS = [
     color: 'gray',
     icon: 'star',
     isPopular: false,
+    // PLN-002: 6 assistants + 5 flows (ameni_plan)
     automations: [
-      { name: 'حملات الإعلانات الطبية', key: 'ads_medical', description: 'اتصال صادر لعرض العروض الطبية الجاهزة' },
-      { name: 'Telesales طبي', key: 'telesales_medical', description: 'مكالمات مبيعات لتقديم عروض طبية مباشرة' },
-      { name: 'المتابعة الدورية والتجديد', key: 'followup_renewal', description: 'متابعة العملاء السابقين وتجديد الخدمات' },
+      { name: 'سيناريو الترحيب الذكي', key: 'smart_welcome', description: 'ترحيب تلقائي ذكي بالمتصلين وتوجيههم' },
+      { name: 'سيناريو الحجز التلقائي', key: 'auto_booking', description: 'حجز مواعيد تلقائي للعملاء' },
+      { name: 'سيناريو الحجز المتسلسل', key: 'sequential_booking', description: 'حجز مواعيد متسلسل متعدد الخطوات' },
+      { name: 'سيناريو التحويل الذكي', key: 'smart_transfer', description: 'تحويل المكالمات للقسم المناسب تلقائياً' },
+      { name: 'سيناريو خارج الدوام / عدم الرد', key: 'after_hours', description: 'التعامل مع المكالمات خارج أوقات العمل' },
+      { name: 'متابعات ما بعد الزيارة', key: 'post_visit_followup', description: 'متابعة المرضى بعد زيارتهم للعيادة' },
     ],
   },
   {
@@ -84,11 +91,10 @@ const PLANS = [
     color: 'yellow',
     icon: 'crown',
     isPopular: true,
+    // PLN-003: 1 assistant + 2 flows
     automations: [
-      { name: 'حملات الإعلانات الطبية', key: 'ads_medical', description: 'اتصال صادر لعرض العروض الطبية الجاهزة' },
-      { name: 'Telesales طبي', key: 'telesales_medical', description: 'مكالمات مبيعات لتقديم عروض طبية مباشرة' },
-      { name: 'المتابعة الدورية والتجديد', key: 'followup_renewal', description: 'متابعة العملاء السابقين وتجديد الخدمات' },
-      { name: 'زيادة الخدمات (Upselling)', key: 'upselling', description: 'اقتراح خدمات إضافية للعملاء الحاليين' },
+      { name: 'مساعد حجز المواعيد', key: 'appointment_assistant', description: 'مساعد ذكي لحجز وتأكيد المواعيد الطبية' },
+      { name: 'أتمتة واتساب', key: 'whatsapp_flow', description: 'متابعة تلقائية عبر واتساب' },
     ],
   },
 ];
@@ -105,7 +111,10 @@ async function seed() {
     // إنشاء الباقات الجديدة
     const created = await Plan.insertMany(PLANS);
     console.log(`✅ Seeded ${created.length} plans:`);
-    created.forEach(p => console.log(`   - ${p.name} (${p.priceDisplay} ر.س)`));
+    created.forEach(p => {
+      const autoCount = p.automations ? p.automations.length : 0;
+      console.log(`   - ${p.name} (${p.priceDisplay} ر.س) → ${autoCount} أتمتة`);
+    });
 
     await mongoose.disconnect();
     console.log('👋 Done');
