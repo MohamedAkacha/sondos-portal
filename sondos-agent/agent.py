@@ -182,10 +182,9 @@ async def entrypoint(ctx: JobContext):
     config = parse_room_config(ctx.room)
 
     # ── 1. STT — Deepgram (supports Arabic) ──
-    stt = deepgram.STT(
-        api_key=os.getenv("DEEPGRAM_API_KEY"),
+    stt = openai.STT(
         language=config.get("sttLanguage", "ar"),
-        model=config.get("sttModel", "nova-2"),
+        model="whisper-1",
     )
     # ── 2. LLM — OpenAI ──
     chat_ctx = llm.ChatContext()
