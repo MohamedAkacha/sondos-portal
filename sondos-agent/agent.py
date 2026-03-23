@@ -253,9 +253,9 @@ async def entrypoint(ctx: JobContext):
 
     # ── Wait for disconnect, then save transcript ──
     @ctx.room.on("disconnected")
-    async def on_disconnect():
+    def on_disconnect():
         logger.info(f"📴 Room disconnected: {ctx.room.name} | Transcript: {len(transcript)} entries")
-        await save_transcript_to_backend(ctx.room.name, transcript)
+        asyncio.create_task(save_transcript_to_backend(ctx.room.name, transcript))
 
     # Keep the agent alive until room closes
     try:
