@@ -1,15 +1,13 @@
-# ══════════════════════════════════════════════════════
 # Sondos AI — LiveKit Agent Worker Dependencies
-# ══════════════════════════════════════════════════════
 
-# LiveKit Agents Framework (pinned <1.0 — agent.py uses v0.x imports)
+# LiveKit Agents Framework (pinned <1.0)
 livekit-agents>=0.12.0,<1.0.0
 livekit-plugins-deepgram>=0.7.0,<1.0.0
 livekit-plugins-openai>=0.10.0,<1.0.0
 livekit-plugins-silero>=0.7.0,<1.0.0
 
-# HTTP client (for saving transcript to backend)
-aiohttp>=3.9.0
+# HTTP client — pinned to avoid WebSocket bug in 3.11+
+aiohttp>=3.9.0,<3.11.0
 
 # Environment variables
 python-dotenv>=1.0.0
