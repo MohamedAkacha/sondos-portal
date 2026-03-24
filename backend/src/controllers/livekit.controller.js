@@ -15,7 +15,7 @@ const {
 const crypto = require('crypto');
 const LiveKitCall = require('../models/LiveKitCall');
 
-const LIVEKIT_URL = process.env.LIVEKIT_URL || 'wss://sondos-portal-8ggfmvt9.livekit.cloud';
+const LIVEKIT_URL = process.env.LIVEKIT_URL || '';
 const LIVEKIT_API_KEY = process.env.LIVEKIT_API_KEY;
 const LIVEKIT_API_SECRET = process.env.LIVEKIT_API_SECRET;
 const AGENT_SECRET = process.env.SONDOS_AGENT_SECRET || '';
@@ -50,14 +50,28 @@ exports.generateToken = async (req, res) => {
     const roomName = req.body.roomName
       || `sondos-test-${userId.slice(-6)}-${crypto.randomBytes(3).toString('hex')}`;
 
-    // ── Agent config from request body (Step 8) ──
+    // ── Agent config from request body — no hardcoded defaults ──
     const agentConfig = {
-      sttProvider: req.body.sttProvider || 'deepgram',
-      llmModel: req.body.llmModel || 'gpt-4o-mini',
-      ttsVoice: req.body.ttsVoice || 'nova',
-      systemPrompt: req.body.systemPrompt || '',
-      greeting: req.body.greeting || '',
+      sttProvider:    req.body.sttProvider,
+      sttModel:       req.body.sttModel,
+      sttLanguage:    req.body.sttLanguage,
+      llmModel:       req.body.llmModel,
+      llmTemperature: req.body.llmTemperature,
+      ttsModel:       req.body.ttsModel,
+      ttsVoice:       req.body.ttsVoice,
+      systemPrompt:   req.body.systemPrompt,
+      greeting:       req.body.greeting,
     };
+
+    // ── Validate required fields ──
+    const requiredFields = ['systemPrompt', 'greeting', 'llmModel', 'ttsVoice'];
+    const missingFields = requiredFields.filter(f => !agentConfig[f]);
+    if (missingFields.length > 0) {
+      return res.status(400).json({
+        success: false,
+        message: `حقول مطلوبة ناقصة: ${missingFields.join(', ')}`,
+      });
+    }
 
     // ── Create room with metadata so agent can read config (Step 8) ──
     if (roomService) {

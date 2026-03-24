@@ -86,10 +86,15 @@ const livekitCallSchema = new mongoose.Schema({
 
   // ── Agent Config (snapshot at call time) ──
   agentConfig: {
-    sttProvider: { type: String, default: 'deepgram' },
-    llmModel: { type: String, default: 'gpt-4o-mini' },
-    ttsVoice: { type: String, default: 'nova' },
-    systemPrompt: { type: String, default: '' },
+    sttProvider:    { type: String },
+    sttModel:       { type: String },
+    sttLanguage:    { type: String },
+    llmModel:       { type: String },
+    llmTemperature: { type: Number },
+    ttsModel:       { type: String },
+    ttsVoice:       { type: String },
+    systemPrompt:   { type: String },
+    greeting:       { type: String },
   },
 
   // ── Metadata ──

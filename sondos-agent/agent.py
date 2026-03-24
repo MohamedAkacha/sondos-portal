@@ -1,10 +1,11 @@
 """
 ╔══════════════════════════════════════════════════════════════╗
-║  Sondos AI — LiveKit Voice Agent Worker (v2)                ║
+║  Sondos AI — LiveKit Voice Agent Worker (v3)                ║
 ║  ─────────────────────────────────────────────────────────   ║
+║  Fully dynamic — zero hardcoded config                      ║
+║  All settings come from room metadata (set by backend)      ║
 ║  STT (Deepgram) → LLM (OpenAI) → TTS (OpenAI)             ║
 ║  + Transcript saving to backend                             ║
-║  + Dynamic config via room metadata                         ║
 ╚══════════════════════════════════════════════════════════════╝
 """
 
@@ -40,78 +41,56 @@ AGENT_SECRET = os.getenv("SONDOS_AGENT_SECRET", "")
 
 
 # ══════════════════════════════════════════════════════
-# Default Agent Configuration (fallback if no metadata)
-# ══════════════════════════════════════════════════════
-
-DEFAULT_SYSTEM_PROMPT = """\
-أنت "سندس"، مساعدة ذكية تعمل في مجال الرعاية الصحية في المملكة العربية السعودية.
-
-## شخصيتك:
-- اسمك سندس، مساعدة ذكية صوتية
-- تتكلمين باللهجة السعودية بشكل طبيعي ومهني
-- تكونين ودودة ومحترفة وسريعة في الرد
-- تساعدين في حجز المواعيد، الاستفسارات الطبية العامة، وتأكيد المواعيد
-
-## تعليمات مهمة:
-- ردودك تكون قصيرة ومباشرة (جملة أو جملتين كحد أقصى)
-- لا تستخدمين نقاط أو قوائم في ردودك الصوتية
-- إذا ما فهمتي السؤال، اطلبي التوضيح بلطف
-- رحبي بالمتصل في أول المكالمة وعرفيه بنفسك
-
-## مثال للترحيب:
-"أهلاً وسهلاً، معك سندس المساعدة الذكية. كيف أقدر أساعدك اليوم؟"
-"""
-
-DEFAULT_GREETING = "أهلاً وسهلاً، معك سندس المساعدة الذكية. كيف أقدر أساعدك اليوم؟"
-
-DEFAULT_CONFIG = {
-    "sttProvider": "deepgram",
-    "sttModel": "nova-2",
-    "sttLanguage": "ar",
-    "llmModel": "gpt-4o-mini",
-    "llmTemperature": 0.7,
-    "ttsModel": "tts-1",
-    "ttsVoice": "nova",
-    "systemPrompt": DEFAULT_SYSTEM_PROMPT,
-    "greeting": DEFAULT_GREETING,
-}
-
-
-# ══════════════════════════════════════════════════════
 # Helper: Parse room metadata for dynamic config
 # ══════════════════════════════════════════════════════
 
 def parse_room_config(room) -> dict:
-    """Read agent config from room metadata (JSON string)."""
-    config = dict(DEFAULT_CONFIG)
-
+    """
+    Read agent config from room metadata (JSON string).
+    ALL config must come from metadata — no hardcoded defaults.
+    Backend is the single source of truth.
+    """
     metadata = room.metadata
     if not metadata:
-        logger.info("ℹ️ No room metadata — using default config")
-        return config
+        logger.error("❌ No room metadata found — agent cannot start without config")
+        raise ValueError("Room metadata is required. Backend must set agentConfig in room metadata.")
 
     try:
         meta = json.loads(metadata)
-        agent_cfg = meta.get("agentConfig", {})
+    except json.JSONDecodeError as e:
+        logger.error(f"❌ Invalid room metadata JSON: {e}")
+        raise ValueError(f"Invalid room metadata JSON: {e}")
 
-        if agent_cfg.get("sttProvider"):
-            config["sttProvider"] = agent_cfg["sttProvider"]
-        if agent_cfg.get("llmModel"):
-            config["llmModel"] = agent_cfg["llmModel"]
-        if agent_cfg.get("ttsVoice"):
-            config["ttsVoice"] = agent_cfg["ttsVoice"]
-        if agent_cfg.get("ttsModel"):
-            config["ttsModel"] = agent_cfg["ttsModel"]
-        if agent_cfg.get("systemPrompt"):
-            config["systemPrompt"] = agent_cfg["systemPrompt"]
-        if agent_cfg.get("greeting"):
-            config["greeting"] = agent_cfg["greeting"]
-        if agent_cfg.get("llmTemperature") is not None:
-            config["llmTemperature"] = float(agent_cfg["llmTemperature"])
+    agent_cfg = meta.get("agentConfig")
+    if not agent_cfg:
+        logger.error("❌ No agentConfig in room metadata")
+        raise ValueError("agentConfig missing from room metadata")
 
-        logger.info(f"✅ Room config loaded: LLM={config['llmModel']}, Voice={config['ttsVoice']}")
-    except (json.JSONDecodeError, KeyError) as e:
-        logger.warning(f"⚠️ Failed to parse room metadata: {e} — using defaults")
+    # ── Validate required fields ──
+    required_fields = ["systemPrompt", "greeting", "llmModel", "ttsVoice"]
+    missing = [f for f in required_fields if not agent_cfg.get(f)]
+    if missing:
+        logger.error(f"❌ Missing required config fields: {missing}")
+        raise ValueError(f"Missing required agentConfig fields: {missing}")
+
+    config = {
+        "sttProvider":    agent_cfg.get("sttProvider", "deepgram"),
+        "sttModel":       agent_cfg.get("sttModel", "nova-2"),
+        "sttLanguage":    agent_cfg.get("sttLanguage", "ar"),
+        "llmModel":       agent_cfg["llmModel"],
+        "llmTemperature": float(agent_cfg.get("llmTemperature", 0.7)),
+        "ttsModel":       agent_cfg.get("ttsModel", "tts-1"),
+        "ttsVoice":       agent_cfg["ttsVoice"],
+        "systemPrompt":   agent_cfg["systemPrompt"],
+        "greeting":       agent_cfg["greeting"],
+    }
+
+    logger.info(
+        f"✅ Room config loaded: "
+        f"STT={config['sttProvider']}/{config['sttModel']} "
+        f"LLM={config['llmModel']} "
+        f"TTS={config['ttsModel']}/{config['ttsVoice']}"
+    )
 
     return config
 
@@ -167,6 +146,45 @@ def prewarm(proc: JobProcess):
 # Agent Entry Point (runs for each new room)
 # ══════════════════════════════════════════════════════
 
+def build_stt(config: dict):
+    """Build STT instance based on config provider."""
+    provider = config["sttProvider"]
+    language = config["sttLanguage"]
+    model = config["sttModel"]
+
+    if provider == "deepgram":
+        logger.info(f"🎧 STT: Deepgram {model} (lang={language})")
+        return deepgram.STT(
+            model=model,
+            language=language,
+        )
+    elif provider == "openai":
+        logger.info(f"🎧 STT: OpenAI Whisper (lang={language})")
+        return openai.STT(
+            model="whisper-1",
+            language=language,
+        )
+    else:
+        logger.warning(f"⚠️ Unknown STT provider '{provider}' — falling back to Deepgram")
+        return deepgram.STT(model="nova-2", language=language)
+
+
+def build_tts(config: dict):
+    """Build TTS instance based on config."""
+    model = config["ttsModel"]
+    voice = config["ttsVoice"]
+    logger.info(f"🔊 TTS: OpenAI {model}/{voice}")
+    return openai.TTS(model=model, voice=voice)
+
+
+def build_llm(config: dict):
+    """Build LLM instance based on config."""
+    model = config["llmModel"]
+    temperature = config["llmTemperature"]
+    logger.info(f"🧠 LLM: {model} (temp={temperature})")
+    return openai.LLM(model=model, temperature=temperature)
+
+
 async def entrypoint(ctx: JobContext):
     """Called when a participant joins a room — creates and starts the agent."""
 
@@ -178,33 +196,24 @@ async def entrypoint(ctx: JobContext):
     participant = await ctx.wait_for_participant()
     logger.info(f"👤 Participant joined: {participant.identity}")
 
-    # ── Read dynamic config from room metadata (Step 8) ──
-    config = parse_room_config(ctx.room)
+    # ── Read dynamic config from room metadata ──
+    try:
+        config = parse_room_config(ctx.room)
+    except ValueError as e:
+        logger.error(f"❌ Cannot start agent: {e}")
+        return
 
-    # ── 1. STT — Deepgram (supports Arabic) ──
-    stt = openai.STT(
-        language=config.get("sttLanguage", "ar"),
-        model="whisper-1",
-    )
-    # ── 2. LLM — OpenAI ──
+    # ── Build pipeline components from config ──
+    stt = build_stt(config)
+    llm_instance = build_llm(config)
+    tts = build_tts(config)
+    vad = ctx.proc.userdata["vad"]
+
+    # ── Chat context with system prompt from config ──
     chat_ctx = llm.ChatContext()
     chat_ctx.append(role="system", text=config["systemPrompt"])
 
-    llm_instance = openai.LLM(
-        model=config["llmModel"],
-        temperature=config["llmTemperature"],
-    )
-
-    # ── 3. TTS — OpenAI ──
-    tts = openai.TTS(
-        model=config.get("ttsModel", "tts-1"),
-        voice=config["ttsVoice"],
-    )
-
-    # ── 4. VAD — Silero ──
-    vad = ctx.proc.userdata["vad"]
-
-    # ── Transcript collector (Step 6) ──
+    # ── Transcript collector ──
     transcript: list[dict] = []
 
     def add_transcript(speaker: str, text: str):
@@ -243,12 +252,17 @@ async def entrypoint(ctx: JobContext):
     # ── Start the agent ──
     agent.start(ctx.room, participant)
 
-    # Say greeting
+    # ── Say greeting from config ──
     greeting = config["greeting"]
     add_transcript("agent", greeting)
     await agent.say(greeting, allow_interruptions=True)
 
-    logger.info(f"🎙️ Agent started in room: {ctx.room.name} | LLM: {config['llmModel']} | Voice: {config['ttsVoice']}")
+    logger.info(
+        f"🎙️ Agent started in room: {ctx.room.name} | "
+        f"STT: {config['sttProvider']}/{config['sttModel']} | "
+        f"LLM: {config['llmModel']} | "
+        f"TTS: {config['ttsModel']}/{config['ttsVoice']}"
+    )
 
     # ── Wait for disconnect, then save transcript ──
     @ctx.room.on("disconnected")
@@ -258,10 +272,9 @@ async def entrypoint(ctx: JobContext):
 
     # Keep the agent alive until room closes
     try:
-        await asyncio.Future()  # Block forever — agent handles events
+        await asyncio.Future()
     except asyncio.CancelledError:
         logger.info(f"🛑 Agent task cancelled for room: {ctx.room.name}")
-        # Save transcript on cancellation too
         await save_transcript_to_backend(ctx.room.name, transcript)
 
 

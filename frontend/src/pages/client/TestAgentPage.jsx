@@ -48,13 +48,17 @@ export default function TestAgentPage() {
   const [audioLevel, setAudioLevel] = useState(0);
   const [agentJoined, setAgentJoined] = useState(false);
 
-  // ── Agent Config State (Step 8 — dynamic settings) ──
+  // ── Agent Config State — all fields sent to backend → room metadata → agent ──
   const [agentConfig, setAgentConfig] = useState({
     sttProvider: 'deepgram',
+    sttModel: 'nova-2',
+    sttLanguage: 'ar',
     llmModel: 'gpt-4o-mini',
+    llmTemperature: 0.7,
+    ttsModel: 'tts-1',
     ttsVoice: 'nova',
-    systemPrompt: 'أنت سندس، مساعدة ذكية تعمل في مجال الرعاية الصحية. تتكلمين باللهجة السعودية بشكل طبيعي ومهني وودود.',
-    greeting: 'أهلاً وسهلاً، معك سندس المساعدة الذكية. كيف أقدر أساعدك اليوم؟',
+    systemPrompt: '',
+    greeting: '',
   });
 
   // ── Refs ──
@@ -113,10 +117,14 @@ export default function TestAgentPage() {
       setDuration(0);
       setAgentJoined(false);
 
-      // 1. Get token from backend (with agent config for dynamic settings)
+      // 1. Get token from backend (with full agent config)
       const data = await getLivekitToken({
         sttProvider: agentConfig.sttProvider,
+        sttModel: agentConfig.sttModel,
+        sttLanguage: agentConfig.sttLanguage,
         llmModel: agentConfig.llmModel,
+        llmTemperature: agentConfig.llmTemperature,
+        ttsModel: agentConfig.ttsModel,
         ttsVoice: agentConfig.ttsVoice,
         systemPrompt: agentConfig.systemPrompt,
         greeting: agentConfig.greeting,
@@ -251,7 +259,7 @@ export default function TestAgentPage() {
       setCallState(CALL_STATE.ERROR);
       cleanupAudio();
     }
-  }, []);
+  }, [agentConfig]);
 
   // ══════════════════════════════════════════════════════
   // Disconnect
@@ -548,13 +556,34 @@ export default function TestAgentPage() {
                 <label className="block text-xs text-gray-400 mb-1.5">تحويل الكلام لنص (STT)</label>
                 <select
                   value={agentConfig.sttProvider}
-                  onChange={(e) => setAgentConfig(c => ({ ...c, sttProvider: e.target.value }))}
+                  onChange={(e) => {
+                    const provider = e.target.value;
+                    setAgentConfig(c => ({
+                      ...c,
+                      sttProvider: provider,
+                      sttModel: provider === 'deepgram' ? 'nova-2' : 'whisper-1',
+                    }));
+                  }}
                   disabled={isActive}
                   className="w-full rounded-lg bg-gray-700/50 border border-gray-600/50 text-white text-sm px-3 py-2 focus:outline-none focus:ring-1 focus:ring-cyan-500/50 disabled:opacity-50"
                 >
-                  <option value="deepgram">Deepgram Nova-2</option>
-                  <option value="groq">Groq Whisper</option>
-                  <option value="azure">Azure Speech</option>
+                  <option value="deepgram">Deepgram Nova-2 (أسرع — Streaming)</option>
+                  <option value="openai">OpenAI Whisper</option>
+                </select>
+              </div>
+
+              {/* STT Language */}
+              <div>
+                <label className="block text-xs text-gray-400 mb-1.5">لغة التعرف على الكلام</label>
+                <select
+                  value={agentConfig.sttLanguage}
+                  onChange={(e) => setAgentConfig(c => ({ ...c, sttLanguage: e.target.value }))}
+                  disabled={isActive}
+                  className="w-full rounded-lg bg-gray-700/50 border border-gray-600/50 text-white text-sm px-3 py-2 focus:outline-none focus:ring-1 focus:ring-cyan-500/50 disabled:opacity-50"
+                >
+                  <option value="ar">العربية</option>
+                  <option value="en">English</option>
+                  <option value="multi">تلقائي (متعدد اللغات)</option>
                 </select>
               </div>
 
@@ -567,57 +596,104 @@ export default function TestAgentPage() {
                   disabled={isActive}
                   className="w-full rounded-lg bg-gray-700/50 border border-gray-600/50 text-white text-sm px-3 py-2 focus:outline-none focus:ring-1 focus:ring-cyan-500/50 disabled:opacity-50"
                 >
-                  <option value="gpt-4o-mini">GPT-4o Mini (أسرع)</option>
+                  <option value="gpt-4o-mini">GPT-4o Mini (أسرع وأرخص)</option>
                   <option value="gpt-4o">GPT-4o (أذكى)</option>
-                  <option value="claude-sonnet">Claude Sonnet</option>
                 </select>
               </div>
 
-              {/* TTS */}
+              {/* LLM Temperature */}
               <div>
-                <label className="block text-xs text-gray-400 mb-1.5">تحويل النص لكلام (TTS)</label>
+                <label className="block text-xs text-gray-400 mb-1.5">
+                  درجة الإبداع: {agentConfig.llmTemperature}
+                </label>
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.1"
+                  value={agentConfig.llmTemperature}
+                  onChange={(e) => setAgentConfig(c => ({ ...c, llmTemperature: parseFloat(e.target.value) }))}
+                  disabled={isActive}
+                  className="w-full accent-cyan-500 disabled:opacity-50"
+                />
+                <div className="flex justify-between text-[10px] text-gray-600 mt-0.5">
+                  <span>دقيق</span>
+                  <span>إبداعي</span>
+                </div>
+              </div>
+
+              {/* TTS Voice */}
+              <div>
+                <label className="block text-xs text-gray-400 mb-1.5">الصوت (TTS)</label>
                 <select
                   value={agentConfig.ttsVoice}
                   onChange={(e) => setAgentConfig(c => ({ ...c, ttsVoice: e.target.value }))}
                   disabled={isActive}
                   className="w-full rounded-lg bg-gray-700/50 border border-gray-600/50 text-white text-sm px-3 py-2 focus:outline-none focus:ring-1 focus:ring-cyan-500/50 disabled:opacity-50"
                 >
-                  <option value="nova">OpenAI — Nova (أنثى)</option>
-                  <option value="alloy">OpenAI — Alloy</option>
-                  <option value="echo">OpenAI — Echo (ذكر)</option>
-                  <option value="shimmer">OpenAI — Shimmer</option>
+                  <option value="nova">Nova (أنثى)</option>
+                  <option value="alloy">Alloy</option>
+                  <option value="echo">Echo (ذكر)</option>
+                  <option value="shimmer">Shimmer</option>
+                </select>
+              </div>
+
+              {/* TTS Model */}
+              <div>
+                <label className="block text-xs text-gray-400 mb-1.5">جودة الصوت</label>
+                <select
+                  value={agentConfig.ttsModel}
+                  onChange={(e) => setAgentConfig(c => ({ ...c, ttsModel: e.target.value }))}
+                  disabled={isActive}
+                  className="w-full rounded-lg bg-gray-700/50 border border-gray-600/50 text-white text-sm px-3 py-2 focus:outline-none focus:ring-1 focus:ring-cyan-500/50 disabled:opacity-50"
+                >
+                  <option value="tts-1">عادي (أسرع)</option>
+                  <option value="tts-1-hd">HD (جودة أعلى)</option>
                 </select>
               </div>
 
               {/* System Prompt */}
               <div>
-                <label className="block text-xs text-gray-400 mb-1.5">شخصية الـ Agent</label>
+                <label className="block text-xs text-gray-400 mb-1.5">
+                  شخصية الـ Agent <span className="text-red-400">*</span>
+                </label>
                 <textarea
                   rows={5}
                   value={agentConfig.systemPrompt}
                   onChange={(e) => setAgentConfig(c => ({ ...c, systemPrompt: e.target.value }))}
                   disabled={isActive}
-                  className="w-full rounded-lg bg-gray-700/50 border border-gray-600/50 text-white text-sm px-3 py-2 focus:outline-none focus:ring-1 focus:ring-cyan-500/50 resize-none leading-relaxed disabled:opacity-50"
+                  placeholder="اكتب تعليمات الـ Agent هنا... مثال: أنت مساعدة ذكية تعمل في عيادة الدكتور أحمد..."
+                  className="w-full rounded-lg bg-gray-700/50 border border-gray-600/50 text-white text-sm px-3 py-2 focus:outline-none focus:ring-1 focus:ring-cyan-500/50 resize-none leading-relaxed disabled:opacity-50 placeholder:text-gray-600"
                   dir="rtl"
                 />
               </div>
 
               {/* Greeting Message */}
               <div>
-                <label className="block text-xs text-gray-400 mb-1.5">رسالة الترحيب</label>
+                <label className="block text-xs text-gray-400 mb-1.5">
+                  رسالة الترحيب <span className="text-red-400">*</span>
+                </label>
                 <input
                   type="text"
                   value={agentConfig.greeting}
                   onChange={(e) => setAgentConfig(c => ({ ...c, greeting: e.target.value }))}
                   disabled={isActive}
-                  className="w-full rounded-lg bg-gray-700/50 border border-gray-600/50 text-white text-sm px-3 py-2 focus:outline-none focus:ring-1 focus:ring-cyan-500/50 disabled:opacity-50"
+                  placeholder="أهلاً وسهلاً، كيف أقدر أساعدك؟"
+                  className="w-full rounded-lg bg-gray-700/50 border border-gray-600/50 text-white text-sm px-3 py-2 focus:outline-none focus:ring-1 focus:ring-cyan-500/50 disabled:opacity-50 placeholder:text-gray-600"
                   dir="rtl"
                 />
               </div>
 
+              {/* Validation warning */}
+              {(!agentConfig.systemPrompt || !agentConfig.greeting) && (
+                <p className="text-[11px] text-amber-400/80 text-center">
+                  ⚠️ شخصية الـ Agent ورسالة الترحيب مطلوبة لبدء المكالمة
+                </p>
+              )}
+
               {/* Info note */}
               <p className="text-[11px] text-cyan-500/70 text-center">
-                ✅ الإعدادات تنتقل تلقائياً للـ Agent عند بدء المكالمة
+                ✅ كل الإعدادات تنتقل ديناميكياً للـ Agent — لا يوجد أي إعداد ثابت
               </p>
             </div>
           </div>
@@ -634,7 +710,7 @@ export default function TestAgentPage() {
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-500">السيرفر</span>
-                <span className="text-gray-300 font-mono text-[11px]">sondos-portal-8gg...livekit.cloud</span>
+                <span className="text-gray-300 font-mono text-[11px]">LiveKit Cloud</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-500">الـ Agent</span>
