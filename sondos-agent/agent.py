@@ -4,7 +4,7 @@
 ║  ─────────────────────────────────────────────────────────   ║
 ║  Fully dynamic — zero hardcoded config                      ║
 ║  All settings come from room metadata (set by backend)      ║
-║  STT (Deepgram / ElevenLabs / Whisper)                      ║
+║  STT (Deepgram / Whisper)                                   ║
 ║  → LLM (OpenAI GPT-5.4 / 4o family)                        ║
 ║  → TTS (OpenAI / ElevenLabs)                                ║
 ║  + Transcript saving to backend                             ║
@@ -165,12 +165,6 @@ def build_stt(config: dict):
         logger.info(f"🎧 STT: OpenAI Whisper (lang={language})")
         return openai.STT(
             model="whisper-1",
-            language=language,
-        )
-    elif provider == "elevenlabs":
-        logger.info(f"🎧 STT: ElevenLabs Scribe {model} (lang={language})")
-        return elevenlabs.STT(
-            model=model,
             language=language,
         )
     else:

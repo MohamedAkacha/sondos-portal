@@ -563,7 +563,6 @@ export default function TestAgentPage() {
                     const modelMap = {
                       deepgram: 'nova-2',
                       openai: 'whisper-1',
-                      elevenlabs: 'scribe_v1',
                     };
                     setAgentConfig(c => ({
                       ...c,
@@ -575,7 +574,6 @@ export default function TestAgentPage() {
                   className="w-full rounded-lg bg-gray-700/50 border border-gray-600/50 text-white text-sm px-3 py-2 focus:outline-none focus:ring-1 focus:ring-cyan-500/50 disabled:opacity-50"
                 >
                   <option value="deepgram">Deepgram Nova-2 (أسرع — Streaming)</option>
-                  <option value="elevenlabs">ElevenLabs Scribe (جودة عالية)</option>
                   <option value="openai">OpenAI Whisper</option>
                 </select>
               </div>
