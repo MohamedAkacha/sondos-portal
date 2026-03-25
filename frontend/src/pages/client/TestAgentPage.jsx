@@ -53,8 +53,9 @@ export default function TestAgentPage() {
     sttProvider: 'deepgram',
     sttModel: 'nova-2',
     sttLanguage: 'ar',
-    llmModel: 'gpt-4o-mini',
+    llmModel: 'gpt-5.4-mini',
     llmTemperature: 0.7,
+    ttsProvider: 'openai',
     ttsModel: 'tts-1',
     ttsVoice: 'nova',
     systemPrompt: '',
@@ -124,6 +125,7 @@ export default function TestAgentPage() {
         sttLanguage: agentConfig.sttLanguage,
         llmModel: agentConfig.llmModel,
         llmTemperature: agentConfig.llmTemperature,
+        ttsProvider: agentConfig.ttsProvider,
         ttsModel: agentConfig.ttsModel,
         ttsVoice: agentConfig.ttsVoice,
         systemPrompt: agentConfig.systemPrompt,
@@ -558,16 +560,22 @@ export default function TestAgentPage() {
                   value={agentConfig.sttProvider}
                   onChange={(e) => {
                     const provider = e.target.value;
+                    const modelMap = {
+                      deepgram: 'nova-2',
+                      openai: 'whisper-1',
+                      elevenlabs: 'scribe_v1',
+                    };
                     setAgentConfig(c => ({
                       ...c,
                       sttProvider: provider,
-                      sttModel: provider === 'deepgram' ? 'nova-2' : 'whisper-1',
+                      sttModel: modelMap[provider] || 'nova-2',
                     }));
                   }}
                   disabled={isActive}
                   className="w-full rounded-lg bg-gray-700/50 border border-gray-600/50 text-white text-sm px-3 py-2 focus:outline-none focus:ring-1 focus:ring-cyan-500/50 disabled:opacity-50"
                 >
                   <option value="deepgram">Deepgram Nova-2 (أسرع — Streaming)</option>
+                  <option value="elevenlabs">ElevenLabs Scribe (جودة عالية)</option>
                   <option value="openai">OpenAI Whisper</option>
                 </select>
               </div>
@@ -596,8 +604,11 @@ export default function TestAgentPage() {
                   disabled={isActive}
                   className="w-full rounded-lg bg-gray-700/50 border border-gray-600/50 text-white text-sm px-3 py-2 focus:outline-none focus:ring-1 focus:ring-cyan-500/50 disabled:opacity-50"
                 >
-                  <option value="gpt-4o-mini">GPT-4o Mini (أسرع وأرخص)</option>
-                  <option value="gpt-4o">GPT-4o (أذكى)</option>
+                  <option value="gpt-5.4">GPT-5.4 (الأذكى)</option>
+                  <option value="gpt-5.4-mini">GPT-5.4 Mini (موصى به ⭐)</option>
+                  <option value="gpt-5.4-nano">GPT-5.4 Nano (الأسرع)</option>
+                  <option value="gpt-4o">GPT-4o (مستقر ومجرّب)</option>
+                  <option value="gpt-4o-mini">GPT-4o Mini (الأرخص)</option>
                 </select>
               </div>
 
@@ -622,7 +633,32 @@ export default function TestAgentPage() {
                 </div>
               </div>
 
-              {/* TTS Voice */}
+              {/* TTS Provider */}
+              <div>
+                <label className="block text-xs text-gray-400 mb-1.5">مزوّد الصوت (TTS)</label>
+                <select
+                  value={agentConfig.ttsProvider}
+                  onChange={(e) => {
+                    const provider = e.target.value;
+                    const defaults = {
+                      openai: { ttsModel: 'tts-1', ttsVoice: 'nova' },
+                      elevenlabs: { ttsModel: 'eleven_multilingual_v2', ttsVoice: 'Rachel' },
+                    };
+                    setAgentConfig(c => ({
+                      ...c,
+                      ttsProvider: provider,
+                      ...defaults[provider],
+                    }));
+                  }}
+                  disabled={isActive}
+                  className="w-full rounded-lg bg-gray-700/50 border border-gray-600/50 text-white text-sm px-3 py-2 focus:outline-none focus:ring-1 focus:ring-cyan-500/50 disabled:opacity-50"
+                >
+                  <option value="openai">OpenAI TTS</option>
+                  <option value="elevenlabs">ElevenLabs (جودة عربية أعلى ⭐)</option>
+                </select>
+              </div>
+
+              {/* TTS Voice — dynamic based on provider */}
               <div>
                 <label className="block text-xs text-gray-400 mb-1.5">الصوت (TTS)</label>
                 <select
@@ -631,14 +667,29 @@ export default function TestAgentPage() {
                   disabled={isActive}
                   className="w-full rounded-lg bg-gray-700/50 border border-gray-600/50 text-white text-sm px-3 py-2 focus:outline-none focus:ring-1 focus:ring-cyan-500/50 disabled:opacity-50"
                 >
-                  <option value="nova">Nova (أنثى)</option>
-                  <option value="alloy">Alloy</option>
-                  <option value="echo">Echo (ذكر)</option>
-                  <option value="shimmer">Shimmer</option>
+                  {agentConfig.ttsProvider === 'elevenlabs' ? (
+                    <>
+                      <option value="Rachel">Rachel (أنثى — إنجليزي)</option>
+                      <option value="Adam">Adam (ذكر — إنجليزي)</option>
+                      <option value="Domi">Domi (أنثى — ديناميكي)</option>
+                      <option value="Elli">Elli (أنثى — هادئ)</option>
+                      <option value="Josh">Josh (ذكر — عميق)</option>
+                      <option value="Arnold">Arnold (ذكر — قوي)</option>
+                      <option value="Bella">Bella (أنثى — دافئ)</option>
+                      <option value="Sam">Sam (ذكر — واضح)</option>
+                    </>
+                  ) : (
+                    <>
+                      <option value="nova">Nova (أنثى)</option>
+                      <option value="alloy">Alloy</option>
+                      <option value="echo">Echo (ذكر)</option>
+                      <option value="shimmer">Shimmer</option>
+                    </>
+                  )}
                 </select>
               </div>
 
-              {/* TTS Model */}
+              {/* TTS Model — dynamic based on provider */}
               <div>
                 <label className="block text-xs text-gray-400 mb-1.5">جودة الصوت</label>
                 <select
@@ -647,8 +698,18 @@ export default function TestAgentPage() {
                   disabled={isActive}
                   className="w-full rounded-lg bg-gray-700/50 border border-gray-600/50 text-white text-sm px-3 py-2 focus:outline-none focus:ring-1 focus:ring-cyan-500/50 disabled:opacity-50"
                 >
-                  <option value="tts-1">عادي (أسرع)</option>
-                  <option value="tts-1-hd">HD (جودة أعلى)</option>
+                  {agentConfig.ttsProvider === 'elevenlabs' ? (
+                    <>
+                      <option value="eleven_multilingual_v2">Multilingual v2 (أعلى جودة)</option>
+                      <option value="eleven_turbo_v2_5">Turbo v2.5 (أسرع استجابة ⭐)</option>
+                      <option value="eleven_flash_v2_5">Flash v2.5 (الأسرع)</option>
+                    </>
+                  ) : (
+                    <>
+                      <option value="tts-1">عادي (أسرع)</option>
+                      <option value="tts-1-hd">HD (جودة أعلى)</option>
+                    </>
+                  )}
                 </select>
               </div>
 
@@ -693,7 +754,7 @@ export default function TestAgentPage() {
 
               {/* Info note */}
               <p className="text-[11px] text-cyan-500/70 text-center">
-                ✅ كل الإعدادات تنتقل ديناميكياً للـ Agent — لا يوجد أي إعداد ثابت
+                ✅ كل الإعدادات تنتقل ديناميكياً للـ Agent — يدعم OpenAI + ElevenLabs + Deepgram
               </p>
             </div>
           </div>

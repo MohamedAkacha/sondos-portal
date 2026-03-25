@@ -1,10 +1,12 @@
 """
 ╔══════════════════════════════════════════════════════════════╗
-║  Sondos AI — LiveKit Voice Agent Worker (v3)                ║
+║  Sondos AI — LiveKit Voice Agent Worker (v4)                ║
 ║  ─────────────────────────────────────────────────────────   ║
 ║  Fully dynamic — zero hardcoded config                      ║
 ║  All settings come from room metadata (set by backend)      ║
-║  STT (Deepgram) → LLM (OpenAI) → TTS (OpenAI)             ║
+║  STT (Deepgram / ElevenLabs / Whisper)                      ║
+║  → LLM (OpenAI GPT-5.4 / 4o family)                        ║
+║  → TTS (OpenAI / ElevenLabs)                                ║
 ║  + Transcript saving to backend                             ║
 ╚══════════════════════════════════════════════════════════════╝
 """
@@ -26,7 +28,7 @@ from livekit.agents import (
     llm,
 )
 from livekit.agents.pipeline import VoicePipelineAgent
-from livekit.plugins import deepgram, openai, silero
+from livekit.plugins import deepgram, openai, silero, elevenlabs
 
 # ── Load .env ──
 load_dotenv()
@@ -79,6 +81,7 @@ def parse_room_config(room) -> dict:
         "sttLanguage":    agent_cfg.get("sttLanguage", "ar"),
         "llmModel":       agent_cfg["llmModel"],
         "llmTemperature": float(agent_cfg.get("llmTemperature", 0.7)),
+        "ttsProvider":    agent_cfg.get("ttsProvider", "openai"),
         "ttsModel":       agent_cfg.get("ttsModel", "tts-1"),
         "ttsVoice":       agent_cfg["ttsVoice"],
         "systemPrompt":   agent_cfg["systemPrompt"],
@@ -89,7 +92,7 @@ def parse_room_config(room) -> dict:
         f"✅ Room config loaded: "
         f"STT={config['sttProvider']}/{config['sttModel']} "
         f"LLM={config['llmModel']} "
-        f"TTS={config['ttsModel']}/{config['ttsVoice']}"
+        f"TTS={config['ttsProvider']}/{config['ttsModel']}/{config['ttsVoice']}"
     )
 
     return config
@@ -164,17 +167,33 @@ def build_stt(config: dict):
             model="whisper-1",
             language=language,
         )
+    elif provider == "elevenlabs":
+        logger.info(f"🎧 STT: ElevenLabs Scribe {model} (lang={language})")
+        return elevenlabs.STT(
+            model=model,
+            language=language,
+        )
     else:
         logger.warning(f"⚠️ Unknown STT provider '{provider}' — falling back to Deepgram")
         return deepgram.STT(model="nova-2", language=language)
 
 
 def build_tts(config: dict):
-    """Build TTS instance based on config."""
+    """Build TTS instance based on config provider."""
+    provider = config["ttsProvider"]
     model = config["ttsModel"]
     voice = config["ttsVoice"]
-    logger.info(f"🔊 TTS: OpenAI {model}/{voice}")
-    return openai.TTS(model=model, voice=voice)
+
+    if provider == "elevenlabs":
+        logger.info(f"🔊 TTS: ElevenLabs {model}/{voice}")
+        return elevenlabs.TTS(
+            model_id=model,
+            voice=voice,
+        )
+    else:
+        # Default: OpenAI TTS
+        logger.info(f"🔊 TTS: OpenAI {model}/{voice}")
+        return openai.TTS(model=model, voice=voice)
 
 
 def build_llm(config: dict):
@@ -261,7 +280,7 @@ async def entrypoint(ctx: JobContext):
         f"🎙️ Agent started in room: {ctx.room.name} | "
         f"STT: {config['sttProvider']}/{config['sttModel']} | "
         f"LLM: {config['llmModel']} | "
-        f"TTS: {config['ttsModel']}/{config['ttsVoice']}"
+        f"TTS: {config['ttsProvider']}/{config['ttsModel']}/{config['ttsVoice']}"
     )
 
     # ── Wait for disconnect, then save transcript ──
