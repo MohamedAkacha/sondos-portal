@@ -52,15 +52,16 @@ exports.generateToken = async (req, res) => {
 
     // ── Agent config from request body — no hardcoded defaults ──
     const agentConfig = {
-      sttProvider:    req.body.sttProvider,
-      sttModel:       req.body.sttModel,
-      sttLanguage:    req.body.sttLanguage,
-      llmModel:       req.body.llmModel,
-      llmTemperature: req.body.llmTemperature,
-      ttsModel:       req.body.ttsModel,
-      ttsVoice:       req.body.ttsVoice,
-      systemPrompt:   req.body.systemPrompt,
-      greeting:       req.body.greeting,
+        sttProvider:    req.body.sttProvider,
+        sttModel:       req.body.sttModel,
+        sttLanguage:    req.body.sttLanguage,
+        llmModel:       req.body.llmModel,
+        llmTemperature: req.body.llmTemperature,
+        ttsProvider:    req.body.ttsProvider,    // ← add this line
+        ttsModel:       req.body.ttsModel,
+        ttsVoice:       req.body.ttsVoice,
+        systemPrompt:   req.body.systemPrompt,
+        greeting:       req.body.greeting,
     };
 
     // ── Validate required fields ──
