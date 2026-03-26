@@ -683,7 +683,7 @@ export default function TestAgentPage() {
                     const provider = e.target.value;
                     const defaults = {
                       openai: { ttsModel: 'tts-1', ttsVoice: 'nova' },
-                      elevenlabs: { ttsModel: 'eleven_multilingual_v2', ttsVoice: 'Rachel' },
+                      elevenlabs: { ttsModel: 'eleven_multilingual_v2', ttsVoice: '21m00Tcm4TlvDq8ikWAM' },
                     };
                     setAgentConfig(c => ({
                       ...c,
@@ -710,14 +710,14 @@ export default function TestAgentPage() {
                 >
                   {agentConfig.ttsProvider === 'elevenlabs' ? (
                     <>
-                      <option value="Rachel">Rachel (أنثى — إنجليزي)</option>
-                      <option value="Adam">Adam (ذكر — إنجليزي)</option>
-                      <option value="Domi">Domi (أنثى — ديناميكي)</option>
-                      <option value="Elli">Elli (أنثى — هادئ)</option>
-                      <option value="Josh">Josh (ذكر — عميق)</option>
-                      <option value="Arnold">Arnold (ذكر — قوي)</option>
-                      <option value="Bella">Bella (أنثى — دافئ)</option>
-                      <option value="Sam">Sam (ذكر — واضح)</option>
+                      <option value="21m00Tcm4TlvDq8ikWAM">Rachel (أنثى — إنجليزي)</option>
+                      <option value="pNInz6obpgDQGcFmaJgB">Adam (ذكر — إنجليزي)</option>
+                      <option value="AZnzlk1XvdvUeBnXmlld">Domi (أنثى — ديناميكي)</option>
+                      <option value="MF3mGyEYCl7XYWbV9V6O">Elli (أنثى — هادئ)</option>
+                      <option value="TxGEqnHWrfWFTfGW9XjX">Josh (ذكر — عميق)</option>
+                      <option value="VR6AewLTigWG4xSOukaG">Arnold (ذكر — قوي)</option>
+                      <option value="EXAVITQu4vr4xnSDxMaL">Bella (أنثى — دافئ)</option>
+                      <option value="yoZ06aMxZJJ28mfd3POQ">Sam (ذكر — واضح)</option>
                     </>
                   ) : (
                     <>

@@ -1,5 +1,5 @@
 # ══════════════════════════════════════════════════════
-# Sondos AI — Agent Worker Dockerfile
+# Sondos AI — Agent Worker Dockerfile (LiveKit 1.5)
 # ══════════════════════════════════════════════════════
 
 FROM python:3.12-slim
@@ -15,7 +15,7 @@ COPY agent.py .
 
 # LiveKit agent worker expects these env vars:
 # LIVEKIT_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET
-# DEEPGRAM_API_KEY, OPENAI_API_KEY
+# DEEPGRAM_API_KEY, OPENAI_API_KEY, ELEVEN_API_KEY
 
 # Start the agent worker
 CMD ["python", "agent.py", "start"]

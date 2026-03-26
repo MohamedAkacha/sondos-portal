@@ -1,12 +1,13 @@
 """
 ╔══════════════════════════════════════════════════════════════╗
-║  Sondos AI — LiveKit Voice Agent Worker (v4)                ║
+║  Sondos AI — LiveKit Voice Agent Worker (v5)                ║
 ║  ─────────────────────────────────────────────────────────   ║
+║  LiveKit Agents 1.5 — AgentSession API                      ║
 ║  Fully dynamic — zero hardcoded config                      ║
 ║  All settings come from room metadata (set by backend)      ║
 ║  STT (Deepgram / Whisper)                                   ║
 ║  → LLM (OpenAI GPT-5.4 / 4o family)                        ║
-║  → TTS (OpenAI / ElevenLabs)                                ║
+║  → TTS (OpenAI / ElevenLabs — with voice cloning)           ║
 ║  + Transcript saving to backend                             ║
 ╚══════════════════════════════════════════════════════════════╝
 """
@@ -20,14 +21,12 @@ from datetime import datetime, timezone
 import aiohttp
 from dotenv import load_dotenv
 from livekit.agents import (
-    AutoSubscribe,
+    Agent,
+    AgentServer,
+    AgentSession,
     JobContext,
-    JobProcess,
-    WorkerOptions,
     cli,
-    llm,
 )
-from livekit.agents.pipeline import VoicePipelineAgent
 from livekit.plugins import deepgram, openai, silero, elevenlabs
 
 # ── Load .env ──
@@ -55,7 +54,7 @@ def parse_room_config(room) -> dict:
     metadata = room.metadata
     if not metadata:
         logger.error("❌ No room metadata found — agent cannot start without config")
-        raise ValueError("Room metadata is required. Backend must set agentConfig in room metadata.")
+        raise ValueError("Room metadata is required.")
 
     try:
         meta = json.loads(metadata)
@@ -126,7 +125,6 @@ async def save_transcript_to_backend(room_name: str, transcript: list[dict]):
         async with aiohttp.ClientSession() as session:
             async with session.post(url, json=payload, headers=headers, timeout=aiohttp.ClientTimeout(total=10)) as resp:
                 if resp.status == 200:
-                    data = await resp.json()
                     logger.info(f"✅ Transcript saved: {len(transcript)} entries → {room_name}")
                 else:
                     text = await resp.text()
@@ -136,17 +134,7 @@ async def save_transcript_to_backend(room_name: str, transcript: list[dict]):
 
 
 # ══════════════════════════════════════════════════════
-# Process Initialization (runs once per worker process)
-# ══════════════════════════════════════════════════════
-
-def prewarm(proc: JobProcess):
-    """Pre-load the VAD model to avoid cold-start delay."""
-    proc.userdata["vad"] = silero.VAD.load()
-    logger.info("✅ VAD model pre-loaded")
-
-
-# ══════════════════════════════════════════════════════
-# Agent Entry Point (runs for each new room)
+# Builder functions — STT / LLM / TTS from config
 # ══════════════════════════════════════════════════════
 
 def build_stt(config: dict):
@@ -157,16 +145,10 @@ def build_stt(config: dict):
 
     if provider == "deepgram":
         logger.info(f"🎧 STT: Deepgram {model} (lang={language})")
-        return deepgram.STT(
-            model=model,
-            language=language,
-        )
+        return deepgram.STT(model=model, language=language)
     elif provider == "openai":
         logger.info(f"🎧 STT: OpenAI Whisper (lang={language})")
-        return openai.STT(
-            model="whisper-1",
-            language=language,
-        )
+        return openai.STT(model="whisper-1", language=language)
     else:
         logger.warning(f"⚠️ Unknown STT provider '{provider}' — falling back to Deepgram")
         return deepgram.STT(model="nova-2", language=language)
@@ -181,11 +163,10 @@ def build_tts(config: dict):
     if provider == "elevenlabs":
         logger.info(f"🔊 TTS: ElevenLabs {model}/{voice}")
         return elevenlabs.TTS(
-            model_id=model,
-            voice=voice,
+            model=model,
+            voice_id=voice,
         )
     else:
-        # Default: OpenAI TTS
         logger.info(f"🔊 TTS: OpenAI {model}/{voice}")
         return openai.TTS(model=model, voice=voice)
 
@@ -198,16 +179,21 @@ def build_llm(config: dict):
     return openai.LLM(model=model, temperature=temperature)
 
 
+# ══════════════════════════════════════════════════════
+# Agent Entry Point (LiveKit 1.5 — AgentSession API)
+# ══════════════════════════════════════════════════════
+
+server = AgentServer()
+
+
+@server.rtc_session()
 async def entrypoint(ctx: JobContext):
     """Called when a participant joins a room — creates and starts the agent."""
 
-    logger.info(f"🔗 Connecting to room: {ctx.room.name}")
+    logger.info(f"🔗 Joining room: {ctx.room.name}")
 
-    # ── Connect and wait for participant ──
-    await ctx.connect(auto_subscribe=AutoSubscribe.AUDIO_ONLY)
-
-    participant = await ctx.wait_for_participant()
-    logger.info(f"👤 Participant joined: {participant.identity}")
+    # ── Connect to room (ensures metadata is available) ──
+    await ctx.connect()
 
     # ── Read dynamic config from room metadata ──
     try:
@@ -220,11 +206,6 @@ async def entrypoint(ctx: JobContext):
     stt = build_stt(config)
     llm_instance = build_llm(config)
     tts = build_tts(config)
-    vad = ctx.proc.userdata["vad"]
-
-    # ── Chat context with system prompt from config ──
-    chat_ctx = llm.ChatContext()
-    chat_ctx.append(role="system", text=config["systemPrompt"])
 
     # ── Transcript collector ──
     transcript: list[dict] = []
@@ -236,39 +217,44 @@ async def entrypoint(ctx: JobContext):
             "timestamp": datetime.now(timezone.utc).isoformat(),
         })
 
-    # ── Create the Voice Pipeline Agent ──
-    agent = VoicePipelineAgent(
-        vad=vad,
+    # ── Create AgentSession (replaces VoicePipelineAgent in 1.x) ──
+    session = AgentSession(
+        vad=silero.VAD.load(),
         stt=stt,
         llm=llm_instance,
         tts=tts,
-        chat_ctx=chat_ctx,
         allow_interruptions=True,
         min_endpointing_delay=0.5,
     )
 
     # ── Listen for transcript events ──
-    @agent.on("user_speech_committed")
+    @session.on("user_speech_committed")
     def on_user_speech(msg):
         text = msg.content if hasattr(msg, "content") else str(msg)
         if text and text.strip():
             add_transcript("user", text.strip())
             logger.info(f"🎤 User: {text.strip()[:80]}")
 
-    @agent.on("agent_speech_committed")
+    @session.on("agent_speech_committed")
     def on_agent_speech(msg):
         text = msg.content if hasattr(msg, "content") else str(msg)
         if text and text.strip():
             add_transcript("agent", text.strip())
             logger.info(f"🤖 Agent: {text.strip()[:80]}")
 
-    # ── Start the agent ──
-    agent.start(ctx.room, participant)
+    # ── Create Agent with system prompt ──
+    agent = Agent(instructions=config["systemPrompt"])
 
-    # ── Say greeting from config ──
+    # ── Start the session ──
+    await session.start(
+        agent=agent,
+        room=ctx.room,
+    )
+
+    # ── Say greeting ──
     greeting = config["greeting"]
     add_transcript("agent", greeting)
-    await agent.say(greeting, allow_interruptions=True)
+    await session.say(greeting, allow_interruptions=True)
 
     logger.info(
         f"🎙️ Agent started in room: {ctx.room.name} | "
@@ -283,7 +269,7 @@ async def entrypoint(ctx: JobContext):
         logger.info(f"📴 Room disconnected: {ctx.room.name} | Transcript: {len(transcript)} entries")
         asyncio.create_task(save_transcript_to_backend(ctx.room.name, transcript))
 
-    # Keep the agent alive until room closes
+    # Keep alive until room closes
     try:
         await asyncio.Future()
     except asyncio.CancelledError:
@@ -296,9 +282,4 @@ async def entrypoint(ctx: JobContext):
 # ══════════════════════════════════════════════════════
 
 if __name__ == "__main__":
-    cli.run_app(
-        WorkerOptions(
-            entrypoint_fnc=entrypoint,
-            prewarm_fnc=prewarm,
-        ),
-    )
+    cli.run_app(server)
