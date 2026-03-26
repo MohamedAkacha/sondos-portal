@@ -47,6 +47,7 @@ export default function TestAgentPage() {
   const [error, setError] = useState(null);
   const [audioLevel, setAudioLevel] = useState(0);
   const [agentJoined, setAgentJoined] = useState(false);
+  const [isMuted, setIsMuted] = useState(false);
 
   // ── Agent Config State — all fields sent to backend → room metadata → agent ──
   const [agentConfig, setAgentConfig] = useState({
@@ -297,7 +298,17 @@ export default function TestAgentPage() {
     callIdRef.current = null;
     setCallState(CALL_STATE.IDLE);
     setAgentJoined(false);
+    setIsMuted(false);
   }, []);
+
+  // ── Toggle Mute ──
+  const toggleMute = useCallback(async () => {
+    if (roomRef.current?.localParticipant) {
+      const newMuted = !isMuted;
+      await roomRef.current.localParticipant.setMicrophoneEnabled(!newMuted);
+      setIsMuted(newMuted);
+    }
+  }, [isMuted]);
 
   // ── Cleanup audio resources ──
   const cleanupAudio = () => {
@@ -444,7 +455,7 @@ export default function TestAgentPage() {
               )}
 
               {/* Call Buttons */}
-              <div className="flex gap-4">
+              <div className="flex gap-3 items-center">
                 {!isActive ? (
                   <button
                     onClick={connect}
@@ -459,20 +470,50 @@ export default function TestAgentPage() {
                     ابدأ المكالمة
                   </button>
                 ) : (
-                  <button
-                    onClick={disconnect}
-                    className="flex items-center gap-2 px-8 py-3.5 rounded-xl font-semibold text-white
-                      bg-gradient-to-r from-red-600 to-red-500
-                      hover:from-red-500 hover:to-red-400
-                      active:scale-95 transition-all duration-200 shadow-lg shadow-red-900/30"
-                  >
-                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 3.75L18 6m0 0l2.25 2.25M18 6l2.25-2.25M18 6l-2.25 2.25m1.5 13.5c-8.284 0-15-6.716-15-15V4.5A2.25 2.25 0 014.5 2.25h1.372c.516 0 .966.351 1.091.852l1.106 4.423c.11.44-.055.902-.417 1.173l-1.293.97a.835.835 0 00-.38 1.21 12.035 12.035 0 007.143 7.143c.441.162.928-.004 1.21-.38l.97-1.293c.271-.362.734-.527 1.173-.417l4.423 1.106c.5.125.852.575.852 1.091V19.5a2.25 2.25 0 01-2.25 2.25h-2.25z" />
-                    </svg>
-                    إنهاء المكالمة
-                  </button>
+                  <>
+                    {/* Mute/Unmute Button */}
+                    <button
+                      onClick={toggleMute}
+                      className={`flex items-center justify-center w-12 h-12 rounded-full font-semibold transition-all duration-200 active:scale-95
+                        ${isMuted
+                          ? 'bg-amber-500/20 border-2 border-amber-500/50 text-amber-400 hover:bg-amber-500/30'
+                          : 'bg-gray-700/50 border-2 border-gray-600/50 text-gray-300 hover:bg-gray-600/50'
+                        }`}
+                      title={isMuted ? 'تشغيل الميكروفون' : 'كتم الميكروفون'}
+                    >
+                      {isMuted ? (
+                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M19 19L17.591 17.591L5.409 5.409L4 4" />
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 18.75C8.27 18.75 5.25 15.73 5.25 12V10M18.75 10V12C18.75 12.94 18.53 13.83 18.14 14.62M8.25 8.25V12C8.25 14.07 9.93 15.75 12 15.75C12.92 15.75 13.76 15.41 14.39 14.85M12 18.75V22.5M8.25 22.5H15.75M8.25 4.35V4.35C8.25 2.28 9.93.75 12 .75V.75C14.07.75 15.75 2.28 15.75 4.35V12" />
+                        </svg>
+                      ) : (
+                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 18.75C8.27 18.75 5.25 15.73 5.25 12V10M18.75 10V12C18.75 15.73 15.73 18.75 12 18.75M12 18.75V22.5M8.25 22.5H15.75M8.25 4.5V12C8.25 14.07 9.93 15.75 12 15.75C14.07 15.75 15.75 14.07 15.75 12V4.5C15.75 2.43 14.07.75 12 .75C9.93.75 8.25 2.43 8.25 4.5Z" />
+                        </svg>
+                      )}
+                    </button>
+
+                    {/* End Call Button */}
+                    <button
+                      onClick={disconnect}
+                      className="flex items-center gap-2 px-8 py-3.5 rounded-xl font-semibold text-white
+                        bg-gradient-to-r from-red-600 to-red-500
+                        hover:from-red-500 hover:to-red-400
+                        active:scale-95 transition-all duration-200 shadow-lg shadow-red-900/30"
+                    >
+                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 3.75L18 6m0 0l2.25 2.25M18 6l2.25-2.25M18 6l-2.25 2.25m1.5 13.5c-8.284 0-15-6.716-15-15V4.5A2.25 2.25 0 014.5 2.25h1.372c.516 0 .966.351 1.091.852l1.106 4.423c.11.44-.055.902-.417 1.173l-1.293.97a.835.835 0 00-.38 1.21 12.035 12.035 0 007.143 7.143c.441.162.928-.004 1.21-.38l.97-1.293c.271-.362.734-.527 1.173-.417l4.423 1.106c.5.125.852.575.852 1.091V19.5a2.25 2.25 0 01-2.25 2.25h-2.25z" />
+                      </svg>
+                      إنهاء المكالمة
+                    </button>
+                  </>
                 )}
               </div>
+
+              {/* Mute indicator */}
+              {isActive && isMuted && (
+                <p className="text-xs text-amber-400/80 mt-2 animate-pulse">🔇 الميكروفون مكتوم</p>
+              )}
 
               {/* Error Display */}
               {error && (
@@ -563,6 +604,7 @@ export default function TestAgentPage() {
                     const modelMap = {
                       deepgram: 'nova-2',
                       openai: 'whisper-1',
+                      elevenlabs: 'scribe_v1',
                     };
                     setAgentConfig(c => ({
                       ...c,
@@ -574,6 +616,7 @@ export default function TestAgentPage() {
                   className="w-full rounded-lg bg-gray-700/50 border border-gray-600/50 text-white text-sm px-3 py-2 focus:outline-none focus:ring-1 focus:ring-cyan-500/50 disabled:opacity-50"
                 >
                   <option value="deepgram">Deepgram Nova-2 (أسرع — Streaming)</option>
+                  <option value="elevenlabs">ElevenLabs Scribe (جودة عالية)</option>
                   <option value="openai">OpenAI Whisper</option>
                 </select>
               </div>
@@ -779,8 +822,8 @@ export default function TestAgentPage() {
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-500">الصوت</span>
-                <span className={isActive ? 'text-emerald-400' : 'text-gray-500'}>
-                  {isActive ? '🎙️ الميكروفون مفعل' : '🔇 غير مفعل'}
+                <span className={isActive ? (isMuted ? 'text-amber-400' : 'text-emerald-400') : 'text-gray-500'}>
+                  {isActive ? (isMuted ? '🔇 الميكروفون مكتوم' : '🎙️ الميكروفون مفعل') : '🔇 غير مفعل'}
                 </span>
               </div>
             </div>
