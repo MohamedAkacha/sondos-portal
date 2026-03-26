@@ -162,18 +162,9 @@ def build_tts(config: dict):
     language = config.get("sttLanguage", "ar")
 
     if provider == "elevenlabs":
-        logger.info(f"🔊 TTS: ElevenLabs {model}/{voice} (lang={language})")
+        logger.info(f"🔊 TTS: ElevenLabs {voice}")
         return elevenlabs.TTS(
-            model=model,
             voice_id=voice,
-            language=language,
-            encoding="pcm_24000",
-            voice_settings=elevenlabs.VoiceSettings(
-                stability=0.5,
-                similarity_boost=0.75,
-                style=0.0,
-                use_speaker_boost=True,
-            ),
         )
     else:
         logger.info(f"🔊 TTS: OpenAI {model}/{voice}")
