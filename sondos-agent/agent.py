@@ -166,7 +166,12 @@ def build_tts(config: dict):
             model=model,
             voice_id=voice,
             language="ar",
-            auto_mode=False,
+            voice_settings=elevenlabs.VoiceSettings(
+                stability=0.5,
+                similarity_boost=0.75,
+                style=0.0,
+                use_speaker_boost=True,
+            ),
         )
     else:
         logger.info(f"🔊 TTS: OpenAI {model}/{voice}")

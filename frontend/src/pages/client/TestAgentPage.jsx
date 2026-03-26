@@ -683,7 +683,7 @@ export default function TestAgentPage() {
                     const provider = e.target.value;
                     const defaults = {
                       openai: { ttsModel: 'tts-1', ttsVoice: 'nova' },
-                      elevenlabs: { ttsModel: 'eleven_multilingual_v2', ttsVoice: '21m00Tcm4TlvDq8ikWAM' },
+                      elevenlabs: { ttsModel: 'eleven_turbo_v2_5', ttsVoice: '21m00Tcm4TlvDq8ikWAM' },
                     };
                     setAgentConfig(c => ({
                       ...c,
@@ -741,8 +741,8 @@ export default function TestAgentPage() {
                 >
                   {agentConfig.ttsProvider === 'elevenlabs' ? (
                     <>
+                      <option value="eleven_turbo_v2_5">Turbo v2.5 (أسرع — موصى به ⭐)</option>
                       <option value="eleven_multilingual_v2">Multilingual v2 (أعلى جودة)</option>
-                      <option value="eleven_turbo_v2_5">Turbo v2.5 (أسرع استجابة ⭐)</option>
                       <option value="eleven_flash_v2_5">Flash v2.5 (الأسرع)</option>
                     </>
                   ) : (
