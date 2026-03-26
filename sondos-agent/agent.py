@@ -159,13 +159,15 @@ def build_tts(config: dict):
     provider = config["ttsProvider"]
     model = config["ttsModel"]
     voice = config["ttsVoice"]
+    language = config.get("sttLanguage", "ar")
 
     if provider == "elevenlabs":
-        logger.info(f"🔊 TTS: ElevenLabs {model}/{voice}")
+        logger.info(f"🔊 TTS: ElevenLabs {model}/{voice} (lang={language})")
         return elevenlabs.TTS(
             model=model,
             voice_id=voice,
-            language="ar",
+            language=language,
+            encoding="pcm_24000",
             voice_settings=elevenlabs.VoiceSettings(
                 stability=0.5,
                 similarity_boost=0.75,
