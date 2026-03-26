@@ -5,7 +5,7 @@ import {
   Filter, Download, RefreshCw, Plus, Eye, Edit, MoreVertical,
   Play, Pause, Volume2, FileText, X, MapPin, ArrowUpRight,
   ArrowDownRight, Loader2, AlertCircle, Bot, Database, Megaphone,
-  Hash, Mic
+  Hash, Mic, Smartphone
 } from "lucide-react";
 import { useTheme } from "@/hooks/useTheme";
 import { useLanguage } from "@/hooks/useLanguage";
@@ -13,6 +13,7 @@ import {
   callsAPI, leadsAPI, campaignsAPI, assistantsAPI, 
   knowledgebasesAPI, phoneNumbersAPI 
 } from "@/services/api/sondosAPI";
+import { listAgents } from "@/services/api/agentAPI";
 
 export default function DashboardPage() {
   const { isDark } = useTheme();
@@ -43,6 +44,9 @@ export default function DashboardPage() {
       totalAssistants: 0,
       avgCallDuration: 0,
       answerRate: 0,
+      totalAgents: 0,
+      activeAgents: 0,
+      totalPhones: 0,
     }
   });
 
@@ -62,13 +66,14 @@ export default function DashboardPage() {
     
     try {
       // Fetch all data in parallel
-      const [callsRes, leadsRes, campaignsRes, assistantsRes, kbRes, phonesRes] = await Promise.allSettled([
+      const [callsRes, leadsRes, campaignsRes, assistantsRes, kbRes, phonesRes, agentsRes] = await Promise.allSettled([
         callsAPI.getAll({ per_page: 100 }),
         leadsAPI.getAll({ per_page: 100 }),
         campaignsAPI.getAll(),
         assistantsAPI.getAll(),
         knowledgebasesAPI.getAll(),
-        phoneNumbersAPI.getAll()
+        phoneNumbersAPI.getAll(),
+        listAgents(),
       ]);
 
       // Process calls
@@ -115,6 +120,13 @@ export default function DashboardPage() {
       if (phonesRes.status === 'fulfilled') {
         const res = phonesRes.value;
         phoneNumbers = res.data || res || [];
+      }
+
+      // Process agents (Sondos AI Agents)
+      let agents = [];
+      if (agentsRes.status === 'fulfilled') {
+        const res = agentsRes.value;
+        agents = res.agents || res.data || res || [];
       }
 
       // ========== STATS CALCULATION (Based on API docs) ==========
@@ -164,6 +176,7 @@ export default function DashboardPage() {
         assistants,
         knowledgebases,
         phoneNumbers,
+        agents,
         stats: {
           totalCalls,
           answeredCalls,
@@ -179,6 +192,9 @@ export default function DashboardPage() {
           totalPhoneNumbers: phoneNumbers.length,
           avgCallDuration: avgDuration,
           answerRate,
+          totalAgents: agents.length,
+          activeAgents: agents.filter(a => a.status === 'active').length,
+          totalPhones: phoneNumbers.length,
         }
       });
 
@@ -330,6 +346,13 @@ function OverviewTab({ data, isDark }) {
         <KPICard icon={Megaphone} title={t('dash.campaigns')} value={stats.totalCampaigns} color="purple" isDark={isDark} />
         <KPICard icon={Bot} title={t('dash.assistants')} value={stats.totalAssistants} color="pink" isDark={isDark} />
         <KPICard icon={Database} title={t('dash.knowledgeBases')} value={stats.totalKnowledgebases || 0} color="yellow" isDark={isDark} />
+      </div>
+
+      {/* Agents & Phones Stats */}
+      <div className="grid grid-cols-3 gap-4">
+        <KPICard icon={Bot} title="المساعدين الأذكياء" value={stats.totalAgents} color="teal" isDark={isDark} />
+        <KPICard icon={Check} title="مساعدين نشطين" value={stats.activeAgents} color="emerald" isDark={isDark} />
+        <KPICard icon={Smartphone} title="أرقام الهاتف" value={stats.totalPhones} color="cyan" isDark={isDark} />
       </div>
 
       {/* Charts Row */}

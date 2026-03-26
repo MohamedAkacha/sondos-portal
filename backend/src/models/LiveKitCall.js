@@ -51,6 +51,14 @@ const livekitCallSchema = new mongoose.Schema({
     index: true,
   },
 
+  // ── Agent Reference ──
+  agentId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Agent',
+    default: null,
+    index: true,
+  },
+
   // ── Call Status ──
   status: {
     type: String,
@@ -91,10 +99,18 @@ const livekitCallSchema = new mongoose.Schema({
     sttLanguage:    { type: String },
     llmModel:       { type: String },
     llmTemperature: { type: Number },
+    ttsProvider:    { type: String },
     ttsModel:       { type: String },
     ttsVoice:       { type: String },
     systemPrompt:   { type: String },
     greeting:       { type: String },
+  },
+
+  // ── Call Source ──
+  source: {
+    type: String,
+    enum: ['web', 'sip', 'api'],
+    default: 'web',
   },
 
   // ── Metadata ──
@@ -110,6 +126,7 @@ const livekitCallSchema = new mongoose.Schema({
 // ── Indexes ──
 livekitCallSchema.index({ userId: 1, createdAt: -1 });
 livekitCallSchema.index({ status: 1, createdAt: -1 });
+livekitCallSchema.index({ agentId: 1, createdAt: -1 });
 
 // ── Virtual: formatted duration ──
 livekitCallSchema.virtual('formattedDuration').get(function () {

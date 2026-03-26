@@ -63,10 +63,12 @@ const planSchema = new mongoose.Schema({
   }],
   // حدود الباقة
   limits: {
-    maxCalls: { type: Number, default: -1 },       // -1 = غير محدود
-    maxCallDuration: { type: Number, default: 300 }, // بالثواني
+    maxCalls: { type: Number, default: -1 },           // -1 = غير محدود
+    maxCallDuration: { type: Number, default: 300 },   // بالثواني
     maxVoices: { type: Number, default: 2 },
-    maxAssistants: { type: Number, default: 1 }
+    maxAssistants: { type: Number, default: 1 },       // عدد المساعدين
+    maxPhoneNumbers: { type: Number, default: 0 },     // عدد أرقام الهاتف
+    maxMonthlyMinutes: { type: Number, default: 100 }, // دقائق المكالمات الشهرية
   },
   // الترتيب والعرض
   sortOrder: {
