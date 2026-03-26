@@ -14,6 +14,7 @@ const {
 } = require('livekit-server-sdk');
 const crypto = require('crypto');
 const LiveKitCall = require('../models/LiveKitCall');
+const Agent = require('../models/Agent');
 
 const LIVEKIT_URL = process.env.LIVEKIT_URL || '';
 const LIVEKIT_API_KEY = process.env.LIVEKIT_API_KEY;
@@ -50,19 +51,33 @@ exports.generateToken = async (req, res) => {
     const roomName = req.body.roomName
       || `sondos-test-${userId.slice(-6)}-${crypto.randomBytes(3).toString('hex')}`;
 
-    // ── Agent config from request body — no hardcoded defaults ──
-    const agentConfig = {
+    // ── Agent config: from agentId (DB) or from request body (manual) ──
+    let agentConfig;
+    let agentId = req.body.agentId || null;
+
+    if (agentId) {
+      // Load config from Agent model
+      const agent = await Agent.findOne({ _id: agentId, userId: req.user._id });
+      if (!agent) {
+        return res.status(404).json({ success: false, message: 'المساعد غير موجود' });
+      }
+      agentConfig = agent.toLiveKitConfig();
+      console.log(`[LiveKit] Config loaded from Agent: ${agent.name} (${agentId})`);
+    } else {
+      // Manual config from request body (backwards compatible)
+      agentConfig = {
         sttProvider:    req.body.sttProvider,
         sttModel:       req.body.sttModel,
         sttLanguage:    req.body.sttLanguage,
         llmModel:       req.body.llmModel,
         llmTemperature: req.body.llmTemperature,
-        ttsProvider:    req.body.ttsProvider,    // ← add this line
+        ttsProvider:    req.body.ttsProvider,
         ttsModel:       req.body.ttsModel,
         ttsVoice:       req.body.ttsVoice,
         systemPrompt:   req.body.systemPrompt,
         greeting:       req.body.greeting,
-    };
+      };
+    }
 
     // ── Validate required fields ──
     const requiredFields = ['systemPrompt', 'greeting', 'llmModel', 'ttsVoice'];
@@ -114,6 +129,7 @@ exports.generateToken = async (req, res) => {
         userId: req.user._id,
         status: 'created',
         agentConfig,
+        agentId: agentId || undefined,
       });
     } catch (dbErr) {
       console.warn('[LiveKit] Failed to create call record:', dbErr.message);

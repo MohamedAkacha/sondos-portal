@@ -25,6 +25,9 @@ import PaymentCallbackPage from '@/pages/client/PaymentCallbackPage';
 import PaymentHistoryPage from '@/pages/client/PaymentHistoryPage';
 import TestAgentPage from '@/pages/client/TestAgentPage';
 import MyPlanPage from '@/pages/client/MyPlanPage';
+import AgentsPage from '@/pages/client/AgentsPage';
+import AgentSettingsPage from '@/pages/client/AgentSettingsPage';
+import CreateAgentPage from '@/pages/client/CreateAgentPage';
 
 // Admin pages
 import AdminDashboardPage from '@/pages/admin/AdminDashboardPage';
@@ -85,6 +88,9 @@ export default function Router() {
           <Route path="payment/callback"  element={<PaymentCallbackPage />} />
           <Route path="payment/history"   element={<PaymentHistoryPage />} />
           <Route path="test-agent"        element={<TestAgentPage />} />
+          <Route path="agents"            element={<AgentsPage />} />
+          <Route path="agents/new"        element={<CreateAgentPage />} />
+          <Route path="agents/:id"        element={<AgentSettingsPage />} />
 
           {/* Redirects: old routes → settings tabs */}
           <Route path="balance"      element={<Navigate to="/settings?tab=balance" replace />} />

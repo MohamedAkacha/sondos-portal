@@ -16,6 +16,7 @@ const sondosRoutes = require('./routes/sondos.routes');
 const paymentRoutes = require('./routes/payment.routes');
 const livekitRoutes = require('./routes/livekit.routes');
 const publicRoutes = require('./routes/public.routes');
+const agentRoutes = require('./routes/agent.routes');
 
 const app = express();
 
@@ -116,6 +117,9 @@ app.use('/api/payments', paymentRoutes);
 
 // LiveKit routes (Voice Agent — Token + Status)
 app.use('/api/livekit', livekitRoutes);
+
+// Agent routes (CRUD + Chat + Templates)
+app.use('/api/agents', agentRoutes);
 
 // Public routes (external systems — API Key auth, no user token)
 app.use('/api/public', publicRoutes);

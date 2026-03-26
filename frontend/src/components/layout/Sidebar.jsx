@@ -23,6 +23,7 @@ export default function Sidebar({ onLogout, user }) {
     { path: '/payment',     icon: CreditCard,label: t('sidebar.payment')    },
     { path: '/my-plan',     icon: Crown,     label: t('sidebar.myPlan') || 'باقتي' },
     { path: '/settings',    icon: Settings, label: t('sidebar.settings')     },
+    { path: '/agents',      icon: Bot,      label: 'المساعدين'               },
     { path: '/test-agent',  icon: Mic,      label: t('sidebar.testAgent')    },
   ];
 

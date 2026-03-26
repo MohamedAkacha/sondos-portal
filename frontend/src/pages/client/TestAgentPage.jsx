@@ -5,7 +5,9 @@
 // Uses LiveKit JS SDK for WebRTC connection
 // =====================================================
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { getLivekitToken, saveLivekitTranscript } from '@/services/api/livekitAPI';
+import { getAgent } from '@/services/api/agentAPI';
 
 // ── Call States ──
 const CALL_STATE = {
@@ -73,6 +75,42 @@ export default function TestAgentPage() {
   const callIdRef = useRef(null);
   const transcriptRef = useRef([]);
 
+  // ── Load agent config from URL param (?agentId=xxx) ──
+  const [searchParams] = useSearchParams();
+  const agentIdParam = searchParams.get('agentId');
+  const [agentMode, setAgentMode] = useState(false);
+  const [agentName, setAgentName] = useState('');
+
+  useEffect(() => {
+    if (agentIdParam) {
+      const loadAgentConfig = async () => {
+        try {
+          const res = await getAgent(agentIdParam);
+          if (res.success && res.agent) {
+            const a = res.agent;
+            setAgentConfig({
+              sttProvider: a.stt?.provider || 'deepgram',
+              sttModel: a.stt?.model || 'nova-2',
+              sttLanguage: a.stt?.language || 'ar',
+              llmModel: a.llm?.model || 'gpt-5.4-mini',
+              llmTemperature: a.llm?.temperature || 0.7,
+              ttsProvider: a.voice?.provider || 'openai',
+              ttsModel: a.voice?.model || 'tts-1',
+              ttsVoice: a.voice?.voiceId || 'nova',
+              systemPrompt: a.systemPrompt || '',
+              greeting: a.greeting || 'أهلاً وسهلاً',
+            });
+            setAgentMode(true);
+            setAgentName(a.name);
+          }
+        } catch (err) {
+          console.error('Failed to load agent config:', err);
+        }
+      };
+      loadAgentConfig();
+    }
+  }, [agentIdParam]);
+
   // Keep transcriptRef in sync with state
   useEffect(() => {
     transcriptRef.current = transcript;
@@ -121,6 +159,7 @@ export default function TestAgentPage() {
 
       // 1. Get token from backend (with full agent config)
       const data = await getLivekitToken({
+        agentId: agentIdParam || undefined,
         sttProvider: agentConfig.sttProvider,
         sttModel: agentConfig.sttModel,
         sttLanguage: agentConfig.sttLanguage,
@@ -381,10 +420,13 @@ export default function TestAgentPage() {
       {/* ── Header ── */}
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-white mb-1">
-          🧪 اختبار المساعد الصوتي
+          🧪 {agentMode ? `اختبار "${agentName}"` : 'اختبار المساعد الصوتي'}
         </h1>
         <p className="text-gray-400 text-sm">
-          اختبر مكالمة صوتية مباشرة مع سندس عبر المتصفح — LiveKit WebRTC
+          {agentMode
+            ? `مكالمة صوتية مباشرة مع ${agentName} عبر المتصفح — LiveKit WebRTC`
+            : 'اختبر مكالمة صوتية مباشرة مع سندس عبر المتصفح — LiveKit WebRTC'
+          }
         </p>
       </div>
 
