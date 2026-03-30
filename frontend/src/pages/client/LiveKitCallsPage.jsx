@@ -81,7 +81,7 @@ function KPICard({ icon: Icon, label, value, sub, color, isDark }) {
   }[color] || { bg: "bg-gray-500/10", text: "text-gray-500", border: "border-gray-500/20" };
 
   return (
-    <div className={`rounded-2xl p-5 border ${isDark ? "bg-[#111113] border-[#1f1f23]" : "bg-white border-gray-200"}`}>
+    <div className={`rounded-2xl p-5 border transition-all hover:shadow-md ${isDark ? "bg-[#111113]/80 border-[#1f1f23] hover:border-[#2a2a2e]" : "bg-white border-gray-200 hover:shadow-lg"}`}>
       <div className={`w-10 h-10 ${cfg.bg} ${cfg.border} border rounded-xl flex items-center justify-center mb-3`}>
         <Icon className={`w-5 h-5 ${cfg.text}`} />
       </div>
@@ -427,7 +427,7 @@ export default function LiveKitCallsPage() {
       )}
 
       {/* ── Table ── */}
-      <div className={`rounded-2xl border overflow-hidden ${isDark ? "bg-[#111113] border-[#1f1f23]" : "bg-white border-gray-200"}`}>
+      <div className={`rounded-2xl border overflow-hidden ${isDark ? "bg-[#111113]/80 border-[#1f1f23]" : "bg-white border-gray-200 shadow-sm"}`}>
         {loading ? (
           <div className="flex items-center justify-center py-24">
             <Loader2 className="w-8 h-8 animate-spin text-teal-500" />
@@ -463,7 +463,7 @@ export default function LiveKitCallsPage() {
                     <tr
                       key={call._id || i}
                       className={`transition-colors ${
-                        isDark ? "border-[#1f1f23]/40 hover:bg-[#1a1a1d]" : "border-gray-100 hover:bg-gray-50"
+                        isDark ? "border-[#1f1f23]/40 hover:bg-[#1a1a1d]/60" : "border-gray-100 hover:bg-gray-50"
                       }`}
                       style={{ borderBottomWidth: "1px", borderBottomStyle: "solid" }}
                     >

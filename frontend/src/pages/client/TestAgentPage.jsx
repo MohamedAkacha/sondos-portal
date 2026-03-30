@@ -1,48 +1,36 @@
 // =====================================================
-// Test Agent Page — LiveKit Web Voice Call
+// Test Agent Page — Professional Voice Call UI
 // ─────────────────────────────────────────────────────
-// Browser-based voice call to the Sondos AI Agent
-// Uses LiveKit JS SDK for WebRTC connection
+// Immersive full-screen call experience
+// Settings in overlay drawer — not cluttering the call screen
+// ALL LiveKit logic preserved 100%
 // =====================================================
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
+import {
+  Phone, PhoneOff, Mic, MicOff, Settings2, X,
+  ChevronRight, Bot, Trash2, AlertCircle, Sparkles,
+  MessageSquareText, WifiOff,
+} from 'lucide-react';
+import { useTheme } from '@/hooks/useTheme';
 import { getLivekitToken, saveLivekitTranscript } from '@/services/api/livekitAPI';
 import { getAgent } from '@/services/api/agentAPI';
 
-// ── Call States ──
 const CALL_STATE = {
-  IDLE: 'idle',
-  CONNECTING: 'connecting',
-  CONNECTED: 'connected',
-  AGENT_SPEAKING: 'agent_speaking',
-  USER_SPEAKING: 'user_speaking',
-  DISCONNECTING: 'disconnecting',
-  ERROR: 'error',
+  IDLE: 'idle', CONNECTING: 'connecting', CONNECTED: 'connected',
+  AGENT_SPEAKING: 'agent_speaking', USER_SPEAKING: 'user_speaking',
+  DISCONNECTING: 'disconnecting', ERROR: 'error',
 };
-
-// ── Status Labels (Arabic) ──
 const STATE_LABELS = {
-  [CALL_STATE.IDLE]: 'جاهز',
-  [CALL_STATE.CONNECTING]: 'جاري الاتصال...',
-  [CALL_STATE.CONNECTED]: 'متصل',
-  [CALL_STATE.AGENT_SPEAKING]: 'سندس تتكلم...',
-  [CALL_STATE.USER_SPEAKING]: 'تتكلم...',
-  [CALL_STATE.DISCONNECTING]: 'جاري الإنهاء...',
-  [CALL_STATE.ERROR]: 'خطأ في الاتصال',
-};
-
-const STATE_COLORS = {
-  [CALL_STATE.IDLE]: 'text-gray-400',
-  [CALL_STATE.CONNECTING]: 'text-yellow-400',
-  [CALL_STATE.CONNECTED]: 'text-emerald-400',
-  [CALL_STATE.AGENT_SPEAKING]: 'text-cyan-400',
-  [CALL_STATE.USER_SPEAKING]: 'text-emerald-400',
-  [CALL_STATE.DISCONNECTING]: 'text-yellow-400',
-  [CALL_STATE.ERROR]: 'text-red-400',
+  [CALL_STATE.IDLE]: 'جاهز للاتصال', [CALL_STATE.CONNECTING]: 'جاري الاتصال...',
+  [CALL_STATE.CONNECTED]: 'متصل', [CALL_STATE.AGENT_SPEAKING]: 'سندس تتكلم...',
+  [CALL_STATE.USER_SPEAKING]: 'تتكلم...', [CALL_STATE.DISCONNECTING]: 'جاري الإنهاء...',
+  [CALL_STATE.ERROR]: 'فشل الاتصال',
 };
 
 export default function TestAgentPage() {
-  // ── State ──
+  const { isDark } = useTheme();
+  const navigate = useNavigate();
   const [callState, setCallState] = useState(CALL_STATE.IDLE);
   const [transcript, setTranscript] = useState([]);
   const [duration, setDuration] = useState(0);
@@ -50,22 +38,16 @@ export default function TestAgentPage() {
   const [audioLevel, setAudioLevel] = useState(0);
   const [agentJoined, setAgentJoined] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [transcriptOpen, setTranscriptOpen] = useState(true);
 
-  // ── Agent Config State — all fields sent to backend → room metadata → agent ──
   const [agentConfig, setAgentConfig] = useState({
-    sttProvider: 'deepgram',
-    sttModel: 'nova-2',
-    sttLanguage: 'ar',
-    llmModel: 'gpt-5.4-mini',
-    llmTemperature: 0.7,
-    ttsProvider: 'openai',
-    ttsModel: 'tts-1',
-    ttsVoice: 'nova',
-    systemPrompt: '',
-    greeting: '',
+    sttProvider: 'deepgram', sttModel: 'nova-2', sttLanguage: 'ar',
+    llmModel: 'gpt-5.4-mini', llmTemperature: 0.7,
+    ttsProvider: 'openai', ttsModel: 'tts-1', ttsVoice: 'nova',
+    systemPrompt: '', greeting: '',
   });
 
-  // ── Refs ──
   const roomRef = useRef(null);
   const timerRef = useRef(null);
   const audioContextRef = useRef(null);
@@ -74,815 +56,308 @@ export default function TestAgentPage() {
   const audioElRef = useRef(null);
   const callIdRef = useRef(null);
   const transcriptRef = useRef([]);
+  const transcriptEndRef = useRef(null);
 
-  // ── Load agent config from URL param (?agentId=xxx) ──
   const [searchParams] = useSearchParams();
   const agentIdParam = searchParams.get('agentId');
   const [agentMode, setAgentMode] = useState(false);
   const [agentName, setAgentName] = useState('');
 
   useEffect(() => {
-    if (agentIdParam) {
-      const loadAgentConfig = async () => {
-        try {
-          const res = await getAgent(agentIdParam);
-          if (res.success && res.agent) {
-            const a = res.agent;
-            setAgentConfig({
-              sttProvider: a.stt?.provider || 'deepgram',
-              sttModel: a.stt?.model || 'nova-2',
-              sttLanguage: a.stt?.language || 'ar',
-              llmModel: a.llm?.model || 'gpt-5.4-mini',
-              llmTemperature: a.llm?.temperature || 0.7,
-              ttsProvider: a.voice?.provider || 'openai',
-              ttsModel: a.voice?.model || 'tts-1',
-              ttsVoice: a.voice?.voiceId || 'nova',
-              systemPrompt: a.systemPrompt || '',
-              greeting: a.greeting || 'أهلاً وسهلاً',
-            });
-            setAgentMode(true);
-            setAgentName(a.name);
-          }
-        } catch (err) {
-          console.error('Failed to load agent config:', err);
+    if (!agentIdParam) return;
+    (async () => {
+      try {
+        const res = await getAgent(agentIdParam);
+        if (res.success && res.agent) {
+          const a = res.agent;
+          setAgentConfig({
+            sttProvider: a.stt?.provider || 'deepgram', sttModel: a.stt?.model || 'nova-2',
+            sttLanguage: a.stt?.language || 'ar', llmModel: a.llm?.model || 'gpt-5.4-mini',
+            llmTemperature: a.llm?.temperature || 0.7, ttsProvider: a.voice?.provider || 'openai',
+            ttsModel: a.voice?.model || 'tts-1', ttsVoice: a.voice?.voiceId || 'nova',
+            systemPrompt: a.systemPrompt || '', greeting: a.greeting || 'أهلاً وسهلاً',
+          });
+          setAgentMode(true); setAgentName(a.name);
         }
-      };
-      loadAgentConfig();
-    }
+      } catch (err) { console.error('Failed to load agent:', err); }
+    })();
   }, [agentIdParam]);
 
-  // Keep transcriptRef in sync with state
-  useEffect(() => {
-    transcriptRef.current = transcript;
-  }, [transcript]);
+  useEffect(() => { transcriptRef.current = transcript; }, [transcript]);
+  useEffect(() => () => { disconnect(); }, []);
 
-  // ── Cleanup on unmount ──
   useEffect(() => {
-    return () => {
-      disconnect();
-    };
-  }, []);
-
-  // ── Timer ──
-  useEffect(() => {
-    if (callState === CALL_STATE.CONNECTED ||
-        callState === CALL_STATE.AGENT_SPEAKING ||
-        callState === CALL_STATE.USER_SPEAKING) {
-      timerRef.current = setInterval(() => {
-        setDuration(d => d + 1);
-      }, 1000);
-    } else {
-      if (timerRef.current) clearInterval(timerRef.current);
-    }
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-    };
+    const active = [CALL_STATE.CONNECTED, CALL_STATE.AGENT_SPEAKING, CALL_STATE.USER_SPEAKING];
+    if (active.includes(callState)) {
+      timerRef.current = setInterval(() => setDuration(d => d + 1), 1000);
+    } else { if (timerRef.current) clearInterval(timerRef.current); }
+    return () => { if (timerRef.current) clearInterval(timerRef.current); };
   }, [callState]);
 
-  // ── Format duration ──
-  const formatDuration = (secs) => {
-    const m = Math.floor(secs / 60).toString().padStart(2, '0');
-    const s = (secs % 60).toString().padStart(2, '0');
-    return `${m}:${s}`;
-  };
+  useEffect(() => { transcriptEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [transcript]);
 
-  // ══════════════════════════════════════════════════════
-  // Connect to LiveKit Room
-  // ══════════════════════════════════════════════════════
+  const fmtDur = (s) => `${Math.floor(s/60).toString().padStart(2,'0')}:${(s%60).toString().padStart(2,'0')}`;
+  const isActive = callState !== CALL_STATE.IDLE && callState !== CALL_STATE.ERROR;
+  const canStart = agentConfig.systemPrompt && agentConfig.greeting;
+
+  // ═══════════ CONNECT (100% original) ═══════════
   const connect = useCallback(async () => {
     try {
-      setCallState(CALL_STATE.CONNECTING);
-      setError(null);
-      setTranscript([]);
-      setDuration(0);
-      setAgentJoined(false);
-
-      // 1. Get token from backend (with full agent config)
-      const data = await getLivekitToken({
-        agentId: agentIdParam || undefined,
-        sttProvider: agentConfig.sttProvider,
-        sttModel: agentConfig.sttModel,
-        sttLanguage: agentConfig.sttLanguage,
-        llmModel: agentConfig.llmModel,
-        llmTemperature: agentConfig.llmTemperature,
-        ttsProvider: agentConfig.ttsProvider,
-        ttsModel: agentConfig.ttsModel,
-        ttsVoice: agentConfig.ttsVoice,
-        systemPrompt: agentConfig.systemPrompt,
-        greeting: agentConfig.greeting,
-      });
-      const { token, wsUrl, callId } = data;
-
-      // Store callId for transcript saving later
-      callIdRef.current = callId || null;
-
-      if (!token || !wsUrl) {
-        throw new Error('فشل الحصول على بيانات الاتصال');
-      }
-
-      // 2. Dynamically import LiveKit SDK
+      setCallState(CALL_STATE.CONNECTING); setError(null); setTranscript([]); setDuration(0); setAgentJoined(false);
+      const data = await getLivekitToken({ agentId: agentIdParam || undefined, ...agentConfig });
+      const { token, wsUrl, callId } = data; callIdRef.current = callId || null;
+      if (!token || !wsUrl) throw new Error('فشل الحصول على بيانات الاتصال');
       const { Room, RoomEvent, Track, ConnectionState } = await import('livekit-client');
-
-      // 3. Create room instance
-      const room = new Room({
-        adaptiveStream: true,
-        dynacast: true,
-        // Audio settings optimized for voice
-        audioCaptureDefaults: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-        },
-      });
-
+      const room = new Room({ adaptiveStream: true, dynacast: true, audioCaptureDefaults: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
       roomRef.current = room;
-
-      // ── Room Events ──
-
-      // Participant connected (agent joins)
-      room.on(RoomEvent.ParticipantConnected, (participant) => {
-        console.log(`[LiveKit] Participant joined: ${participant.identity}`);
-        setAgentJoined(true);
-        addTranscript('system', 'سندس دخلت المكالمة');
-      });
-
-      // Track subscribed (agent's audio)
-      room.on(RoomEvent.TrackSubscribed, (track, publication, participant) => {
-        if (track.kind === Track.Kind.Audio) {
-          console.log(`[LiveKit] Audio track subscribed from: ${participant.identity}`);
-          // Attach audio to a hidden element to play it
-          const audioEl = track.attach();
-          audioEl.id = 'agent-audio';
-          document.body.appendChild(audioEl);
-          audioElRef.current = audioEl;
-        }
-      });
-
-      // Track unsubscribed
-      room.on(RoomEvent.TrackUnsubscribed, (track) => {
-        const elements = track.detach();
-        elements.forEach(el => el.remove());
-      });
-
-      // Agent speaking status
+      room.on(RoomEvent.ParticipantConnected, () => { setAgentJoined(true); addTranscript('system', 'سندس انضمت للمكالمة'); });
+      room.on(RoomEvent.TrackSubscribed, (track) => { if (track.kind === Track.Kind.Audio) { const el = track.attach(); el.id='agent-audio'; document.body.appendChild(el); audioElRef.current=el; }});
+      room.on(RoomEvent.TrackUnsubscribed, (track) => { track.detach().forEach(el => el.remove()); });
       room.on(RoomEvent.ActiveSpeakersChanged, (speakers) => {
         if (room.state !== ConnectionState.Connected) return;
-        
-        const localIdentity = room.localParticipant?.identity;
-        const isUserSpeaking = speakers.some(s => s.identity === localIdentity);
-        const isAgentSpeaking = speakers.some(s => s.identity !== localIdentity);
-        
-        if (isAgentSpeaking) {
-          setCallState(CALL_STATE.AGENT_SPEAKING);
-        } else if (isUserSpeaking) {
-          setCallState(CALL_STATE.USER_SPEAKING);
-        } else {
-          setCallState(CALL_STATE.CONNECTED);
-        }
+        const lid = room.localParticipant?.identity;
+        if (speakers.some(s => s.identity !== lid)) setCallState(CALL_STATE.AGENT_SPEAKING);
+        else if (speakers.some(s => s.identity === lid)) setCallState(CALL_STATE.USER_SPEAKING);
+        else setCallState(CALL_STATE.CONNECTED);
       });
-
-      // Transcription received (from agent data channel)
       room.on(RoomEvent.TranscriptionReceived, (segments, participant) => {
-        for (const segment of segments) {
-          if (segment.final && segment.text?.trim()) {
-            const isAgent = participant?.identity !== room.localParticipant?.identity;
-            addTranscript(
-              isAgent ? 'agent' : 'user',
-              segment.text.trim()
-            );
-          }
-        }
+        for (const seg of segments) if (seg.final && seg.text?.trim()) addTranscript(participant?.identity !== room.localParticipant?.identity ? 'agent' : 'user', seg.text.trim());
       });
-
-      // Data received (fallback for transcript)
       room.on(RoomEvent.DataReceived, (data, participant) => {
-        try {
-          const msg = JSON.parse(new TextDecoder().decode(data));
-          if (msg.type === 'transcript' && msg.text?.trim()) {
-            const isAgent = participant?.identity !== room.localParticipant?.identity;
-            addTranscript(isAgent ? 'agent' : 'user', msg.text.trim());
-          }
-        } catch (e) {
-          // Not JSON, ignore
-        }
+        try { const msg = JSON.parse(new TextDecoder().decode(data)); if (msg.type==='transcript' && msg.text?.trim()) addTranscript(participant?.identity !== room.localParticipant?.identity ? 'agent' : 'user', msg.text.trim()); } catch(e){}
       });
-
-      // Disconnected
-      room.on(RoomEvent.Disconnected, () => {
-        console.log('[LiveKit] Disconnected');
-        setCallState(CALL_STATE.IDLE);
-        cleanupAudio();
-      });
-
-      // Connection error
-      room.on(RoomEvent.ConnectionQualityChanged, (quality, participant) => {
-        if (quality === 'poor') {
-          console.warn('[LiveKit] Poor connection quality');
-        }
-      });
-
-      // 4. Connect to room with audio enabled
+      room.on(RoomEvent.Disconnected, () => { setCallState(CALL_STATE.IDLE); cleanupAudio(); });
+      room.on(RoomEvent.ConnectionQualityChanged, (q) => { if (q==='poor') console.warn('[LiveKit] Poor connection'); });
       await room.connect(wsUrl, token);
-      
-      // 5. Publish microphone
       await room.localParticipant.setMicrophoneEnabled(true);
-
-      // 6. Setup audio visualization
-      setupAudioVisualization(room);
-
-      setCallState(CALL_STATE.CONNECTED);
+      setupAudioViz(room); setCallState(CALL_STATE.CONNECTED);
       addTranscript('system', 'تم الاتصال — في انتظار سندس...');
-
-      console.log(`[LiveKit] ✅ Connected to room: ${room.name}`);
-
-    } catch (err) {
-      console.error('[LiveKit] Connection error:', err);
-      setError(err.message || 'فشل الاتصال');
-      setCallState(CALL_STATE.ERROR);
-      cleanupAudio();
-    }
+    } catch (err) { console.error('[LiveKit]', err); setError(err.message||'فشل الاتصال'); setCallState(CALL_STATE.ERROR); cleanupAudio(); }
   }, [agentConfig]);
 
-  // ══════════════════════════════════════════════════════
-  // Disconnect
-  // ══════════════════════════════════════════════════════
   const disconnect = useCallback(async () => {
     setCallState(CALL_STATE.DISCONNECTING);
-
-    // ── Save transcript to backend before disconnecting ──
     if (callIdRef.current && transcriptRef.current.length > 0) {
-      try {
-        const entries = transcriptRef.current
-          .filter(t => t.speaker !== 'system')
-          .map(t => ({
-            speaker: t.speaker,
-            text: t.text,
-            timestamp: t.time,
-          }));
-        if (entries.length > 0) {
-          await saveLivekitTranscript(callIdRef.current, entries);
-          console.log(`[LiveKit] ✅ Transcript saved: ${entries.length} entries`);
-        }
-      } catch (err) {
-        console.warn('[LiveKit] Failed to save transcript:', err.message);
-      }
+      try { const entries = transcriptRef.current.filter(t=>t.speaker!=='system').map(t=>({speaker:t.speaker,text:t.text,timestamp:t.time})); if(entries.length>0) await saveLivekitTranscript(callIdRef.current, entries); } catch(e){}
     }
-    
-    if (roomRef.current) {
-      roomRef.current.disconnect(true);
-      roomRef.current = null;
-    }
-    
-    cleanupAudio();
-    callIdRef.current = null;
-    setCallState(CALL_STATE.IDLE);
-    setAgentJoined(false);
-    setIsMuted(false);
+    if (roomRef.current) { roomRef.current.disconnect(true); roomRef.current=null; }
+    cleanupAudio(); callIdRef.current=null; setCallState(CALL_STATE.IDLE); setAgentJoined(false); setIsMuted(false);
   }, []);
 
-  // ── Toggle Mute ──
   const toggleMute = useCallback(async () => {
-    if (roomRef.current?.localParticipant) {
-      const newMuted = !isMuted;
-      await roomRef.current.localParticipant.setMicrophoneEnabled(!newMuted);
-      setIsMuted(newMuted);
-    }
+    if (roomRef.current?.localParticipant) { const m=!isMuted; await roomRef.current.localParticipant.setMicrophoneEnabled(!m); setIsMuted(m); }
   }, [isMuted]);
 
-  // ── Cleanup audio resources ──
   const cleanupAudio = () => {
-    if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
-    if (audioContextRef.current) {
-      audioContextRef.current.close().catch(() => {});
-      audioContextRef.current = null;
-    }
-    if (audioElRef.current) {
-      audioElRef.current.remove();
-      audioElRef.current = null;
-    }
-    setAudioLevel(0);
+    if(animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+    if(audioContextRef.current){audioContextRef.current.close().catch(()=>{}); audioContextRef.current=null;}
+    if(audioElRef.current){audioElRef.current.remove(); audioElRef.current=null;} setAudioLevel(0);
   };
-
-  // ── Audio visualization ──
-  const setupAudioVisualization = (room) => {
-    try {
-      const audioContext = new AudioContext();
-      audioContextRef.current = audioContext;
-
-      const analyser = audioContext.createAnalyser();
-      analyser.fftSize = 256;
-      analyserRef.current = analyser;
-
-      // Connect local mic to analyser
-      const localTrack = room.localParticipant?.getTrackPublication('microphone')?.track;
-      if (localTrack?.mediaStream) {
-        const source = audioContext.createMediaStreamSource(localTrack.mediaStream);
-        source.connect(analyser);
-      }
-
-      const dataArray = new Uint8Array(analyser.frequencyBinCount);
-
-      const updateLevel = () => {
-        analyser.getByteFrequencyData(dataArray);
-        const avg = dataArray.reduce((sum, v) => sum + v, 0) / dataArray.length;
-        setAudioLevel(Math.min(avg / 128, 1));
-        animFrameRef.current = requestAnimationFrame(updateLevel);
-      };
-      updateLevel();
-    } catch (e) {
-      console.warn('[Audio Viz] Failed to setup:', e.message);
-    }
+  const setupAudioViz = (room) => {
+    try { const ctx=new AudioContext(); audioContextRef.current=ctx; const an=ctx.createAnalyser(); an.fftSize=256; analyserRef.current=an;
+      const t=room.localParticipant?.getTrackPublication('microphone')?.track; if(t?.mediaStream) ctx.createMediaStreamSource(t.mediaStream).connect(an);
+      const d=new Uint8Array(an.frequencyBinCount); const upd=()=>{an.getByteFrequencyData(d); setAudioLevel(Math.min(d.reduce((s,v)=>s+v,0)/d.length/128,1)); animFrameRef.current=requestAnimationFrame(upd);}; upd();
+    } catch(e){ console.warn('[Audio]', e.message); }
   };
-
-  // ── Add transcript entry ──
   const addTranscript = (speaker, text) => {
-    setTranscript(prev => [...prev, {
-      id: Date.now() + Math.random(),
-      speaker,
-      text,
-      time: new Date().toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-    }]);
+    setTranscript(prev => [...prev, { id: Date.now()+Math.random(), speaker, text, time: new Date().toLocaleTimeString('ar-SA',{hour:'2-digit',minute:'2-digit',second:'2-digit'}) }]);
   };
 
-  // ── Auto-scroll transcript ──
-  const transcriptEndRef = useRef(null);
-  useEffect(() => {
-    transcriptEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [transcript]);
+  // ═══════════ RENDER ═══════════
+  const ringColor = callState === CALL_STATE.AGENT_SPEAKING ? 'cyan' : callState === CALL_STATE.USER_SPEAKING ? 'emerald' : 'gray';
 
-  const isActive = callState !== CALL_STATE.IDLE && callState !== CALL_STATE.ERROR;
-
-  // ══════════════════════════════════════════════════════
-  // Render
-  // ══════════════════════════════════════════════════════
   return (
-    <div className="min-h-screen p-4 md:p-6" dir="rtl">
-      {/* ── Header ── */}
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-white mb-1">
-          🧪 {agentMode ? `اختبار "${agentName}"` : 'اختبار المساعد الصوتي'}
-        </h1>
-        <p className="text-gray-400 text-sm">
-          {agentMode
-            ? `مكالمة صوتية مباشرة مع ${agentName} عبر المتصفح — LiveKit WebRTC`
-            : 'اختبر مكالمة صوتية مباشرة مع سندس عبر المتصفح — LiveKit WebRTC'
-          }
-        </p>
-      </div>
+    <div className="h-[calc(100vh-64px)] flex flex-col overflow-hidden" dir="rtl">
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        
-        {/* ════════════════════════════════════════════════ */}
-        {/* Call Panel (Main) */}
-        {/* ════════════════════════════════════════════════ */}
-        <div className="lg:col-span-2 space-y-4">
-          
-          {/* Call Card */}
-          <div className="rounded-2xl border border-gray-700/50 bg-gray-800/50 backdrop-blur-sm overflow-hidden">
-            
-            {/* Status Bar */}
-            <div className="flex items-center justify-between px-5 py-3 border-b border-gray-700/30">
-              <div className="flex items-center gap-3">
-                <div className={`w-2.5 h-2.5 rounded-full ${
-                  isActive ? 'bg-emerald-400 animate-pulse' : 'bg-gray-500'
-                }`} />
-                <span className={`text-sm font-medium ${STATE_COLORS[callState]}`}>
-                  {STATE_LABELS[callState]}
-                </span>
-              </div>
-              {isActive && (
-                <span className="text-sm text-gray-400 font-mono tabular-nums">
-                  {formatDuration(duration)}
-                </span>
-              )}
-            </div>
+      {/* ═══ CALL SCREEN ═══ */}
+      <div className="flex-1 relative flex flex-col items-center justify-center"
+        style={isActive ? { background: `radial-gradient(ellipse at 50% 30%, ${ringColor === 'cyan' ? 'rgba(6,182,212,0.06)' : ringColor === 'emerald' ? 'rgba(16,185,129,0.05)' : 'transparent'} 0%, transparent 60%)` } : undefined}>
 
-            {/* Call Visual Area */}
-            <div className="flex flex-col items-center justify-center py-12 px-6">
-              
-              {/* Agent Avatar with Audio Ring */}
-              <div className="relative mb-6">
-                <div className={`w-28 h-28 rounded-full flex items-center justify-center text-4xl
-                  ${isActive
-                    ? 'bg-gradient-to-br from-cyan-500/20 to-teal-500/20 border-2 border-cyan-500/40'
-                    : 'bg-gray-700/40 border-2 border-gray-600/30'
-                  }
-                  transition-all duration-500`}
-                >
-                  🤖
-                </div>
-                {/* Audio Ring Animation */}
-                {callState === CALL_STATE.AGENT_SPEAKING && (
-                  <>
-                    <div className="absolute inset-0 rounded-full border-2 border-cyan-400/50 animate-ping" />
-                    <div className="absolute -inset-2 rounded-full border border-cyan-400/20 animate-pulse" />
-                  </>
-                )}
-                {callState === CALL_STATE.USER_SPEAKING && (
-                  <div className="absolute -inset-2 rounded-full border-2 border-emerald-400/30 animate-pulse" />
-                )}
-              </div>
-
-              <p className="text-lg font-semibold text-white mb-1">سندس</p>
-              <p className="text-xs text-gray-500 mb-6">المساعدة الذكية — Sondos AI</p>
-
-              {/* Audio Level Bar */}
-              {isActive && (
-                <div className="w-48 h-1.5 bg-gray-700 rounded-full overflow-hidden mb-8">
-                  <div
-                    className="h-full bg-gradient-to-r from-cyan-500 to-emerald-400 rounded-full transition-all duration-75"
-                    style={{ width: `${audioLevel * 100}%` }}
-                  />
-                </div>
-              )}
-
-              {/* Call Buttons */}
-              <div className="flex gap-3 items-center">
-                {!isActive ? (
-                  <button
-                    onClick={connect}
-                    className="flex items-center gap-2 px-8 py-3.5 rounded-xl font-semibold text-white
-                      bg-gradient-to-r from-emerald-600 to-emerald-500
-                      hover:from-emerald-500 hover:to-emerald-400
-                      active:scale-95 transition-all duration-200 shadow-lg shadow-emerald-900/30"
-                  >
-                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 002.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 01-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 00-1.091-.852H4.5A2.25 2.25 0 002.25 4.5v2.25z" />
-                    </svg>
-                    ابدأ المكالمة
-                  </button>
-                ) : (
-                  <>
-                    {/* Mute/Unmute Button */}
-                    <button
-                      onClick={toggleMute}
-                      className={`flex items-center justify-center w-12 h-12 rounded-full font-semibold transition-all duration-200 active:scale-95
-                        ${isMuted
-                          ? 'bg-amber-500/20 border-2 border-amber-500/50 text-amber-400 hover:bg-amber-500/30'
-                          : 'bg-gray-700/50 border-2 border-gray-600/50 text-gray-300 hover:bg-gray-600/50'
-                        }`}
-                      title={isMuted ? 'تشغيل الميكروفون' : 'كتم الميكروفون'}
-                    >
-                      {isMuted ? (
-                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M19 19L17.591 17.591L5.409 5.409L4 4" />
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 18.75C8.27 18.75 5.25 15.73 5.25 12V10M18.75 10V12C18.75 12.94 18.53 13.83 18.14 14.62M8.25 8.25V12C8.25 14.07 9.93 15.75 12 15.75C12.92 15.75 13.76 15.41 14.39 14.85M12 18.75V22.5M8.25 22.5H15.75M8.25 4.35V4.35C8.25 2.28 9.93.75 12 .75V.75C14.07.75 15.75 2.28 15.75 4.35V12" />
-                        </svg>
-                      ) : (
-                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 18.75C8.27 18.75 5.25 15.73 5.25 12V10M18.75 10V12C18.75 15.73 15.73 18.75 12 18.75M12 18.75V22.5M8.25 22.5H15.75M8.25 4.5V12C8.25 14.07 9.93 15.75 12 15.75C14.07 15.75 15.75 14.07 15.75 12V4.5C15.75 2.43 14.07.75 12 .75C9.93.75 8.25 2.43 8.25 4.5Z" />
-                        </svg>
-                      )}
-                    </button>
-
-                    {/* End Call Button */}
-                    <button
-                      onClick={disconnect}
-                      className="flex items-center gap-2 px-8 py-3.5 rounded-xl font-semibold text-white
-                        bg-gradient-to-r from-red-600 to-red-500
-                        hover:from-red-500 hover:to-red-400
-                        active:scale-95 transition-all duration-200 shadow-lg shadow-red-900/30"
-                    >
-                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 3.75L18 6m0 0l2.25 2.25M18 6l2.25-2.25M18 6l-2.25 2.25m1.5 13.5c-8.284 0-15-6.716-15-15V4.5A2.25 2.25 0 014.5 2.25h1.372c.516 0 .966.351 1.091.852l1.106 4.423c.11.44-.055.902-.417 1.173l-1.293.97a.835.835 0 00-.38 1.21 12.035 12.035 0 007.143 7.143c.441.162.928-.004 1.21-.38l.97-1.293c.271-.362.734-.527 1.173-.417l4.423 1.106c.5.125.852.575.852 1.091V19.5a2.25 2.25 0 01-2.25 2.25h-2.25z" />
-                      </svg>
-                      إنهاء المكالمة
-                    </button>
-                  </>
-                )}
-              </div>
-
-              {/* Mute indicator */}
-              {isActive && isMuted && (
-                <p className="text-xs text-amber-400/80 mt-2 animate-pulse">🔇 الميكروفون مكتوم</p>
-              )}
-
-              {/* Error Display */}
-              {error && (
-                <div className="mt-4 px-4 py-2.5 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-sm max-w-md text-center">
-                  {error}
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Transcript Card */}
-          <div className="rounded-2xl border border-gray-700/50 bg-gray-800/50 backdrop-blur-sm overflow-hidden">
-            <div className="px-5 py-3 border-b border-gray-700/30 flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-gray-300">📝 النص المباشر</h3>
-              {transcript.length > 0 && (
-                <button
-                  onClick={() => setTranscript([])}
-                  className="text-xs text-gray-500 hover:text-gray-400"
-                >
-                  مسح
-                </button>
-              )}
-            </div>
-            <div className="h-64 overflow-y-auto p-4 space-y-3 scrollbar-thin">
-              {transcript.length === 0 ? (
-                <p className="text-gray-600 text-sm text-center py-8">
-                  ابدأ مكالمة لرؤية النص المباشر هنا
-                </p>
-              ) : (
-                transcript.map((entry) => (
-                  <div key={entry.id} className={`flex gap-3 ${
-                    entry.speaker === 'user' ? 'flex-row-reverse' : ''
-                  }`}>
-                    {/* Avatar */}
-                    <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs shrink-0 ${
-                      entry.speaker === 'agent'
-                        ? 'bg-cyan-500/20 text-cyan-400'
-                        : entry.speaker === 'user'
-                        ? 'bg-emerald-500/20 text-emerald-400'
-                        : 'bg-gray-600/20 text-gray-500'
-                    }`}>
-                      {entry.speaker === 'agent' ? '🤖' : entry.speaker === 'user' ? '🎙️' : 'ℹ️'}
-                    </div>
-                    {/* Message */}
-                    <div className={`max-w-[75%] ${
-                      entry.speaker === 'user' ? 'text-right' : ''
-                    }`}>
-                      <p className={`text-sm leading-relaxed ${
-                        entry.speaker === 'agent'
-                          ? 'text-gray-200'
-                          : entry.speaker === 'user'
-                          ? 'text-gray-300'
-                          : 'text-gray-500 italic text-xs'
-                      }`}>
-                        {entry.text}
-                      </p>
-                      <span className="text-[10px] text-gray-600 mt-0.5 block">
-                        {entry.time}
-                      </span>
-                    </div>
-                  </div>
-                ))
-              )}
-              <div ref={transcriptEndRef} />
-            </div>
+        {/* Top bar */}
+        <div className="absolute top-0 inset-x-0 flex items-center justify-between px-5 py-3 z-10">
+          <button onClick={() => navigate(agentIdParam ? `/agents/${agentIdParam}` : '/agents')}
+            className={`flex items-center gap-1.5 text-sm ${isDark ? 'text-gray-500 hover:text-white' : 'text-gray-400 hover:text-gray-900'} transition-colors`}>
+            <ChevronRight className="w-4 h-4" />
+            <span>{agentMode ? agentName : 'الرجوع'}</span>
+          </button>
+          <div className="flex items-center gap-2">
+            {isActive && (
+              <span className={`text-xs font-mono tabular-nums px-2.5 py-1 rounded-full ${isDark ? 'bg-[#1a1a1d] text-gray-400' : 'bg-gray-100 text-gray-500'}`}>
+                {fmtDur(duration)}
+              </span>
+            )}
+            {!isActive && (
+              <button onClick={() => setSettingsOpen(true)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium ${isDark ? 'text-gray-400 hover:text-white hover:bg-[#1a1a1d]' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'} transition-colors`}>
+                <Settings2 className="w-4 h-4" /> الإعدادات
+              </button>
+            )}
           </div>
         </div>
 
-        {/* ════════════════════════════════════════════════ */}
-        {/* Config Panel (Sidebar) */}
-        {/* ════════════════════════════════════════════════ */}
-        <div className="space-y-4">
-          
-          {/* Agent Config */}
-          <div className="rounded-2xl border border-gray-700/50 bg-gray-800/50 backdrop-blur-sm overflow-hidden">
-            <div className="px-5 py-3 border-b border-gray-700/30">
-              <h3 className="text-sm font-semibold text-gray-300">⚙️ إعدادات الـ Agent</h3>
-            </div>
-            <div className="p-4 space-y-4">
-              
-              {/* STT Provider */}
-              <div>
-                <label className="block text-xs text-gray-400 mb-1.5">تحويل الكلام لنص (STT)</label>
-                <select
-                  value={agentConfig.sttProvider}
-                  onChange={(e) => {
-                    const provider = e.target.value;
-                    const modelMap = {
-                      deepgram: 'nova-2',
-                      openai: 'whisper-1',
-                      elevenlabs: 'scribe_v1',
-                    };
-                    setAgentConfig(c => ({
-                      ...c,
-                      sttProvider: provider,
-                      sttModel: modelMap[provider] || 'nova-2',
-                    }));
-                  }}
-                  disabled={isActive}
-                  className="w-full rounded-lg bg-gray-700/50 border border-gray-600/50 text-white text-sm px-3 py-2 focus:outline-none focus:ring-1 focus:ring-cyan-500/50 disabled:opacity-50"
-                >
-                  <option value="deepgram">Deepgram Nova-2 (أسرع — Streaming)</option>
-                  <option value="elevenlabs">ElevenLabs Scribe (جودة عالية)</option>
-                  <option value="openai">OpenAI Whisper</option>
-                </select>
-              </div>
-
-              {/* STT Language */}
-              <div>
-                <label className="block text-xs text-gray-400 mb-1.5">لغة التعرف على الكلام</label>
-                <select
-                  value={agentConfig.sttLanguage}
-                  onChange={(e) => setAgentConfig(c => ({ ...c, sttLanguage: e.target.value }))}
-                  disabled={isActive}
-                  className="w-full rounded-lg bg-gray-700/50 border border-gray-600/50 text-white text-sm px-3 py-2 focus:outline-none focus:ring-1 focus:ring-cyan-500/50 disabled:opacity-50"
-                >
-                  <option value="ar">العربية</option>
-                  <option value="en">English</option>
-                  <option value="multi">تلقائي (متعدد اللغات)</option>
-                </select>
-              </div>
-
-              {/* LLM */}
-              <div>
-                <label className="block text-xs text-gray-400 mb-1.5">نموذج الذكاء (LLM)</label>
-                <select
-                  value={agentConfig.llmModel}
-                  onChange={(e) => setAgentConfig(c => ({ ...c, llmModel: e.target.value }))}
-                  disabled={isActive}
-                  className="w-full rounded-lg bg-gray-700/50 border border-gray-600/50 text-white text-sm px-3 py-2 focus:outline-none focus:ring-1 focus:ring-cyan-500/50 disabled:opacity-50"
-                >
-                  <option value="gpt-5.4">GPT-5.4 (الأذكى)</option>
-                  <option value="gpt-5.4-mini">GPT-5.4 Mini (موصى به ⭐)</option>
-                  <option value="gpt-5.4-nano">GPT-5.4 Nano (الأسرع)</option>
-                  <option value="gpt-4o">GPT-4o (مستقر ومجرّب)</option>
-                  <option value="gpt-4o-mini">GPT-4o Mini (الأرخص)</option>
-                </select>
-              </div>
-
-              {/* LLM Temperature */}
-              <div>
-                <label className="block text-xs text-gray-400 mb-1.5">
-                  درجة الإبداع: {agentConfig.llmTemperature}
-                </label>
-                <input
-                  type="range"
-                  min="0"
-                  max="1"
-                  step="0.1"
-                  value={agentConfig.llmTemperature}
-                  onChange={(e) => setAgentConfig(c => ({ ...c, llmTemperature: parseFloat(e.target.value) }))}
-                  disabled={isActive}
-                  className="w-full accent-cyan-500 disabled:opacity-50"
-                />
-                <div className="flex justify-between text-[10px] text-gray-600 mt-0.5">
-                  <span>دقيق</span>
-                  <span>إبداعي</span>
-                </div>
-              </div>
-
-              {/* TTS Provider */}
-              <div>
-                <label className="block text-xs text-gray-400 mb-1.5">مزوّد الصوت (TTS)</label>
-                <select
-                  value={agentConfig.ttsProvider}
-                  onChange={(e) => {
-                    const provider = e.target.value;
-                    const defaults = {
-                      openai: { ttsModel: 'tts-1', ttsVoice: 'nova' },
-                      elevenlabs: { ttsModel: 'eleven_turbo_v2_5', ttsVoice: '21m00Tcm4TlvDq8ikWAM' },
-                    };
-                    setAgentConfig(c => ({
-                      ...c,
-                      ttsProvider: provider,
-                      ...defaults[provider],
-                    }));
-                  }}
-                  disabled={isActive}
-                  className="w-full rounded-lg bg-gray-700/50 border border-gray-600/50 text-white text-sm px-3 py-2 focus:outline-none focus:ring-1 focus:ring-cyan-500/50 disabled:opacity-50"
-                >
-                  <option value="openai">OpenAI TTS</option>
-                  <option value="elevenlabs">ElevenLabs (جودة عربية أعلى ⭐)</option>
-                </select>
-              </div>
-
-              {/* TTS Voice — dynamic based on provider */}
-              <div>
-                <label className="block text-xs text-gray-400 mb-1.5">الصوت (TTS)</label>
-                <select
-                  value={agentConfig.ttsVoice}
-                  onChange={(e) => setAgentConfig(c => ({ ...c, ttsVoice: e.target.value }))}
-                  disabled={isActive}
-                  className="w-full rounded-lg bg-gray-700/50 border border-gray-600/50 text-white text-sm px-3 py-2 focus:outline-none focus:ring-1 focus:ring-cyan-500/50 disabled:opacity-50"
-                >
-                  {agentConfig.ttsProvider === 'elevenlabs' ? (
-                    <>
-                      <option value="21m00Tcm4TlvDq8ikWAM">Rachel (أنثى — إنجليزي)</option>
-                      <option value="pNInz6obpgDQGcFmaJgB">Adam (ذكر — إنجليزي)</option>
-                      <option value="AZnzlk1XvdvUeBnXmlld">Domi (أنثى — ديناميكي)</option>
-                      <option value="MF3mGyEYCl7XYWbV9V6O">Elli (أنثى — هادئ)</option>
-                      <option value="TxGEqnHWrfWFTfGW9XjX">Josh (ذكر — عميق)</option>
-                      <option value="VR6AewLTigWG4xSOukaG">Arnold (ذكر — قوي)</option>
-                      <option value="EXAVITQu4vr4xnSDxMaL">Bella (أنثى — دافئ)</option>
-                      <option value="yoZ06aMxZJJ28mfd3POQ">Sam (ذكر — واضح)</option>
-                    </>
-                  ) : (
-                    <>
-                      <option value="nova">Nova (أنثى)</option>
-                      <option value="alloy">Alloy</option>
-                      <option value="echo">Echo (ذكر)</option>
-                      <option value="shimmer">Shimmer</option>
-                    </>
-                  )}
-                </select>
-              </div>
-
-              {/* TTS Model — dynamic based on provider */}
-              <div>
-                <label className="block text-xs text-gray-400 mb-1.5">جودة الصوت</label>
-                <select
-                  value={agentConfig.ttsModel}
-                  onChange={(e) => setAgentConfig(c => ({ ...c, ttsModel: e.target.value }))}
-                  disabled={isActive}
-                  className="w-full rounded-lg bg-gray-700/50 border border-gray-600/50 text-white text-sm px-3 py-2 focus:outline-none focus:ring-1 focus:ring-cyan-500/50 disabled:opacity-50"
-                >
-                  {agentConfig.ttsProvider === 'elevenlabs' ? (
-                    <>
-                      <option value="eleven_turbo_v2_5">Turbo v2.5 (أسرع — موصى به ⭐)</option>
-                      <option value="eleven_multilingual_v2">Multilingual v2 (أعلى جودة)</option>
-                      <option value="eleven_flash_v2_5">Flash v2.5 (الأسرع)</option>
-                    </>
-                  ) : (
-                    <>
-                      <option value="tts-1">عادي (أسرع)</option>
-                      <option value="tts-1-hd">HD (جودة أعلى)</option>
-                    </>
-                  )}
-                </select>
-              </div>
-
-              {/* System Prompt */}
-              <div>
-                <label className="block text-xs text-gray-400 mb-1.5">
-                  شخصية الـ Agent <span className="text-red-400">*</span>
-                </label>
-                <textarea
-                  rows={5}
-                  value={agentConfig.systemPrompt}
-                  onChange={(e) => setAgentConfig(c => ({ ...c, systemPrompt: e.target.value }))}
-                  disabled={isActive}
-                  placeholder="اكتب تعليمات الـ Agent هنا... مثال: أنت مساعدة ذكية تعمل في عيادة الدكتور أحمد..."
-                  className="w-full rounded-lg bg-gray-700/50 border border-gray-600/50 text-white text-sm px-3 py-2 focus:outline-none focus:ring-1 focus:ring-cyan-500/50 resize-none leading-relaxed disabled:opacity-50 placeholder:text-gray-600"
-                  dir="rtl"
-                />
-              </div>
-
-              {/* Greeting Message */}
-              <div>
-                <label className="block text-xs text-gray-400 mb-1.5">
-                  رسالة الترحيب <span className="text-red-400">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={agentConfig.greeting}
-                  onChange={(e) => setAgentConfig(c => ({ ...c, greeting: e.target.value }))}
-                  disabled={isActive}
-                  placeholder="أهلاً وسهلاً، كيف أقدر أساعدك؟"
-                  className="w-full rounded-lg bg-gray-700/50 border border-gray-600/50 text-white text-sm px-3 py-2 focus:outline-none focus:ring-1 focus:ring-cyan-500/50 disabled:opacity-50 placeholder:text-gray-600"
-                  dir="rtl"
-                />
-              </div>
-
-              {/* Validation warning */}
-              {(!agentConfig.systemPrompt || !agentConfig.greeting) && (
-                <p className="text-[11px] text-amber-400/80 text-center">
-                  ⚠️ شخصية الـ Agent ورسالة الترحيب مطلوبة لبدء المكالمة
-                </p>
-              )}
-
-              {/* Info note */}
-              <p className="text-[11px] text-cyan-500/70 text-center">
-                ✅ كل الإعدادات تنتقل ديناميكياً للـ Agent — يدعم OpenAI + ElevenLabs + Deepgram
-              </p>
-            </div>
-          </div>
-
-          {/* Connection Info */}
-          <div className="rounded-2xl border border-gray-700/50 bg-gray-800/50 backdrop-blur-sm overflow-hidden">
-            <div className="px-5 py-3 border-b border-gray-700/30">
-              <h3 className="text-sm font-semibold text-gray-300">📡 معلومات الاتصال</h3>
-            </div>
-            <div className="p-4 space-y-2.5 text-xs">
-              <div className="flex justify-between">
-                <span className="text-gray-500">البروتوكول</span>
-                <span className="text-gray-300 font-mono">WebRTC (LiveKit)</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-500">السيرفر</span>
-                <span className="text-gray-300 font-mono text-[11px]">LiveKit Cloud</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-500">الـ Agent</span>
-                <span className={agentJoined ? 'text-emerald-400' : 'text-gray-500'}>
-                  {agentJoined ? '✅ متصل' : '⏳ غير متصل'}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-500">الصوت</span>
-                <span className={isActive ? (isMuted ? 'text-amber-400' : 'text-emerald-400') : 'text-gray-500'}>
-                  {isActive ? (isMuted ? '🔇 الميكروفون مكتوم' : '🎙️ الميكروفون مفعل') : '🔇 غير مفعل'}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Quick Tips */}
-          <div className="rounded-2xl border border-gray-700/50 bg-gray-800/50 backdrop-blur-sm p-4">
-            <h3 className="text-sm font-semibold text-gray-300 mb-3">💡 نصائح</h3>
-            <ul className="space-y-2 text-xs text-gray-500 leading-relaxed">
-              <li>• تأكد إن الميكروفون مسموح في المتصفح</li>
-              <li>• استخدم سماعة لتجنب الصدى</li>
-              <li>• الـ Agent يحتاج ثانية أو اثنتين بعد الاتصال</li>
-              <li>• تقدر تقاطع سندس وهي تتكلم</li>
-            </ul>
+        {/* Avatar + rings */}
+        <div className="relative mb-8">
+          {isActive && <>
+            <div className="absolute rounded-full transition-all duration-150 pointer-events-none"
+              style={{ inset: `-${20 + audioLevel * 30}px`, border: `1.5px solid ${ringColor === 'cyan' ? 'rgba(6,182,212,0.15)' : ringColor === 'emerald' ? 'rgba(16,185,129,0.15)' : 'rgba(100,100,100,0.08)'}`, borderRadius: '50%' }} />
+            <div className="absolute rounded-full transition-all duration-150 pointer-events-none"
+              style={{ inset: `-${10 + audioLevel * 15}px`, border: `1.5px solid ${ringColor === 'cyan' ? 'rgba(6,182,212,0.25)' : ringColor === 'emerald' ? 'rgba(16,185,129,0.25)' : 'rgba(100,100,100,0.1)'}`, borderRadius: '50%' }} />
+          </>}
+          <div className={`relative z-10 w-36 h-36 rounded-full flex items-center justify-center transition-all duration-700 ${
+            callState === CALL_STATE.AGENT_SPEAKING ? 'bg-gradient-to-br from-cyan-500/15 to-teal-500/15 shadow-[0_0_60px_rgba(6,182,212,0.12)]'
+            : callState === CALL_STATE.USER_SPEAKING ? 'bg-gradient-to-br from-emerald-500/15 to-teal-500/15 shadow-[0_0_60px_rgba(16,185,129,0.1)]'
+            : isDark ? 'bg-[#1a1a1d]' : 'bg-gray-100'
+          }`}>
+            <Bot className={`w-14 h-14 transition-colors duration-500 ${
+              callState === CALL_STATE.AGENT_SPEAKING ? 'text-cyan-400' : callState === CALL_STATE.USER_SPEAKING ? 'text-emerald-400' : isActive ? 'text-teal-400' : isDark ? 'text-gray-600' : 'text-gray-400'
+            }`} strokeWidth={1.5} />
           </div>
         </div>
+
+        <h2 className={`text-xl font-bold mb-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>{agentMode ? agentName : 'سندس'}</h2>
+        <p className={`text-sm mb-8 ${
+          callState === CALL_STATE.AGENT_SPEAKING ? 'text-cyan-400' : callState === CALL_STATE.USER_SPEAKING ? 'text-emerald-400' : isDark ? 'text-gray-500' : 'text-gray-400'
+        }`}>{isActive ? STATE_LABELS[callState] : 'Sondos AI'}</p>
+
+        {/* Audio bar */}
+        {isActive && (
+          <div className={`w-56 h-1 rounded-full overflow-hidden mb-8 ${isDark ? 'bg-[#1a1a1d]' : 'bg-gray-200'}`}>
+            <div className="h-full rounded-full transition-all duration-75"
+              style={{ width: `${audioLevel * 100}%`, background: ringColor === 'cyan' ? 'linear-gradient(90deg,#06b6d4,#14b8a6)' : 'linear-gradient(90deg,#10b981,#34d399)' }} />
+          </div>
+        )}
+
+        {/* Action buttons */}
+        <div className="flex items-center gap-5">
+          {!isActive ? (
+            <button onClick={connect} disabled={!canStart}
+              className="w-20 h-20 rounded-full flex items-center justify-center bg-emerald-500 hover:bg-emerald-400 text-white active:scale-90 transition-all duration-200 shadow-[0_8px_32px_rgba(16,185,129,0.35)] disabled:opacity-30 disabled:cursor-not-allowed disabled:shadow-none disabled:active:scale-100">
+              <Phone className="w-8 h-8" />
+            </button>
+          ) : (<>
+            <button onClick={toggleMute}
+              className={`w-14 h-14 rounded-full flex items-center justify-center transition-all duration-200 active:scale-90 ${
+                isMuted ? 'bg-amber-500/15 text-amber-400' : isDark ? 'bg-[#1a1a1d] text-gray-400 hover:bg-[#222225]' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
+              {isMuted ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
+            </button>
+            <button onClick={disconnect}
+              className="w-20 h-20 rounded-full flex items-center justify-center bg-red-500 hover:bg-red-400 text-white active:scale-90 transition-all duration-200 shadow-[0_8px_32px_rgba(239,68,68,0.3)]">
+              <PhoneOff className="w-8 h-8" />
+            </button>
+            <button onClick={() => setTranscriptOpen(!transcriptOpen)}
+              className={`w-14 h-14 rounded-full flex items-center justify-center transition-all duration-200 active:scale-90 ${
+                transcriptOpen ? 'bg-teal-500/15 text-teal-400' : isDark ? 'bg-[#1a1a1d] text-gray-400' : 'bg-gray-100 text-gray-500'}`}>
+              <MessageSquareText className="w-5 h-5" />
+            </button>
+          </>)}
+        </div>
+
+        {isActive && isMuted && <p className="text-xs text-amber-400 mt-4 flex items-center gap-1.5 bg-amber-500/10 px-3 py-1.5 rounded-full"><MicOff className="w-3 h-3" /> الميكروفون مكتوم</p>}
+        {!isActive && !canStart && (
+          <button onClick={() => setSettingsOpen(true)}
+            className="mt-6 text-xs text-amber-400 flex items-center gap-1.5 bg-amber-500/10 border border-amber-500/20 px-4 py-2 rounded-xl hover:bg-amber-500/15 transition-colors">
+            <AlertCircle className="w-3.5 h-3.5" /> اضغط هنا لإعداد شخصية الوكيل ورسالة الترحيب
+          </button>
+        )}
+        {error && <div className="mt-4 px-4 py-2.5 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm flex items-center gap-2"><WifiOff className="w-4 h-4 shrink-0" /> {error}</div>}
       </div>
+
+      {/* ═══ TRANSCRIPT PANEL ═══ */}
+      {transcriptOpen && (
+        <div className={`h-56 border-t flex flex-col shrink-0 ${isDark ? 'border-[#1f1f23] bg-[#111113]' : 'border-gray-200 bg-white'}`}>
+          <div className={`flex items-center justify-between px-5 py-2 border-b ${isDark ? 'border-[#1f1f23]' : 'border-gray-100'}`}>
+            <span className={`text-xs font-semibold tracking-wide ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>المحادثة</span>
+            {transcript.length > 0 && <button onClick={() => setTranscript([])} className={`text-[11px] flex items-center gap-1 ${isDark ? 'text-gray-600 hover:text-red-400' : 'text-gray-400 hover:text-red-500'} transition-colors`}><Trash2 className="w-3 h-3" /> مسح</button>}
+          </div>
+          <div className="flex-1 overflow-y-auto px-5 py-3 space-y-3">
+            {transcript.length === 0 ? <p className={`text-sm text-center py-8 ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>ابدأ مكالمة لرؤية المحادثة هنا</p>
+            : transcript.map(e => (
+              <div key={e.id} className={`flex gap-2.5 ${e.speaker==='user' ? 'flex-row-reverse' : ''}`}>
+                <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${
+                  e.speaker==='agent' ? 'bg-cyan-500/10 text-cyan-400' : e.speaker==='user' ? 'bg-emerald-500/10 text-emerald-400' : isDark ? 'bg-[#1a1a1d] text-gray-600' : 'bg-gray-100 text-gray-400'
+                }`}>{e.speaker==='agent' ? <Bot className="w-3 h-3" /> : e.speaker==='user' ? <Mic className="w-3 h-3" /> : <Sparkles className="w-3 h-3" />}</div>
+                <div className={`max-w-[70%] ${e.speaker==='user' ? 'text-right' : ''}`}>
+                  <p className={`inline-block text-sm leading-relaxed px-3 py-1.5 rounded-2xl ${
+                    e.speaker==='agent' ? (isDark ? 'bg-[#1a1a1d] text-gray-200 rounded-tr-sm' : 'bg-gray-100 text-gray-800 rounded-tr-sm')
+                    : e.speaker==='user' ? 'bg-teal-500/10 text-teal-100 rounded-tl-sm'
+                    : (isDark ? 'text-gray-600' : 'text-gray-400') + ' text-xs italic'
+                  }`}>{e.text}</p>
+                  <span className={`text-[10px] block mt-0.5 px-1 ${isDark ? 'text-gray-700' : 'text-gray-400'}`}>{e.time}</span>
+                </div>
+              </div>
+            ))}
+            <div ref={transcriptEndRef} />
+          </div>
+        </div>
+      )}
+
+      {/* ═══ SETTINGS DRAWER ═══ */}
+      {settingsOpen && (
+        <div className="fixed inset-0 z-50 flex">
+          <div className="flex-1 bg-black/40 backdrop-blur-sm" onClick={() => setSettingsOpen(false)} />
+          <div className={`w-96 max-w-[85vw] h-full overflow-y-auto ${isDark ? 'bg-[#111113] border-r border-[#1f1f23]' : 'bg-white border-r border-gray-200'}`}>
+            <div className={`sticky top-0 z-10 backdrop-blur-md flex items-center justify-between px-5 py-4 border-b ${isDark ? 'bg-[#111113]/90 border-[#1f1f23]' : 'bg-white/90 border-gray-200'}`}>
+              <h2 className={`text-base font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>إعدادات الوكيل</h2>
+              <button onClick={() => setSettingsOpen(false)} className={`p-1.5 rounded-lg ${isDark ? 'text-gray-500 hover:text-white hover:bg-[#1a1a1d]' : 'text-gray-400 hover:text-gray-900 hover:bg-gray-100'} transition-colors`}><X className="w-5 h-5" /></button>
+            </div>
+            <div className="p-5 space-y-5">
+              <SG label="تحويل الكلام لنص" isDark={isDark}>
+                <SS value={agentConfig.sttProvider} isDark={isDark} onChange={v => { const m={deepgram:'nova-2',openai:'whisper-1',elevenlabs:'scribe_v1'}; setAgentConfig(c=>({...c,sttProvider:v,sttModel:m[v]||'nova-2'})); }}
+                  options={[{v:'deepgram',l:'Deepgram Nova-2'},{v:'elevenlabs',l:'ElevenLabs Scribe'},{v:'openai',l:'OpenAI Whisper'}]} />
+              </SG>
+              <SG label="لغة التعرف" isDark={isDark}>
+                <SS value={agentConfig.sttLanguage} isDark={isDark} onChange={v=>setAgentConfig(c=>({...c,sttLanguage:v}))} options={[{v:'ar',l:'العربية'},{v:'en',l:'English'},{v:'multi',l:'تلقائي'}]} />
+              </SG>
+              <SG label="نموذج الذكاء" isDark={isDark}>
+                <SS value={agentConfig.llmModel} isDark={isDark} onChange={v=>setAgentConfig(c=>({...c,llmModel:v}))} options={[{v:'gpt-5.4',l:'GPT-5.4 (الأذكى)'},{v:'gpt-5.4-mini',l:'GPT-5.4 Mini ⭐'},{v:'gpt-5.4-nano',l:'GPT-5.4 Nano'},{v:'gpt-4o',l:'GPT-4o'},{v:'gpt-4o-mini',l:'GPT-4o Mini'}]} />
+              </SG>
+              <SG label={`درجة الإبداع — ${agentConfig.llmTemperature}`} isDark={isDark}>
+                <input type="range" min="0" max="1" step="0.1" value={agentConfig.llmTemperature} onChange={e=>setAgentConfig(c=>({...c,llmTemperature:parseFloat(e.target.value)}))} className="w-full accent-teal-500 h-1" />
+                <div className={`flex justify-between text-[10px] mt-1 ${isDark?'text-gray-600':'text-gray-400'}`}><span>دقيق</span><span>إبداعي</span></div>
+              </SG>
+              <SG label="مزوّد الصوت" isDark={isDark}>
+                <SS value={agentConfig.ttsProvider} isDark={isDark} onChange={v=>{const d={openai:{ttsModel:'tts-1',ttsVoice:'nova'},elevenlabs:{ttsModel:'eleven_turbo_v2_5',ttsVoice:'21m00Tcm4TlvDq8ikWAM'}};setAgentConfig(c=>({...c,ttsProvider:v,...d[v]}));}}
+                  options={[{v:'openai',l:'OpenAI TTS'},{v:'elevenlabs',l:'ElevenLabs ⭐'}]} />
+              </SG>
+              <SG label="الصوت" isDark={isDark}>
+                <SS value={agentConfig.ttsVoice} isDark={isDark} onChange={v=>setAgentConfig(c=>({...c,ttsVoice:v}))}
+                  options={agentConfig.ttsProvider==='elevenlabs'?[{v:'21m00Tcm4TlvDq8ikWAM',l:'Rachel'},{v:'pNInz6obpgDQGcFmaJgB',l:'Adam'},{v:'AZnzlk1XvdvUeBnXmlld',l:'Domi'},{v:'TxGEqnHWrfWFTfGW9XjX',l:'Josh'},{v:'EXAVITQu4vr4xnSDxMaL',l:'Bella'}]:[{v:'nova',l:'Nova (أنثى)'},{v:'alloy',l:'Alloy'},{v:'echo',l:'Echo (ذكر)'},{v:'shimmer',l:'Shimmer'}]} />
+              </SG>
+              <SG label="جودة الصوت" isDark={isDark}>
+                <SS value={agentConfig.ttsModel} isDark={isDark} onChange={v=>setAgentConfig(c=>({...c,ttsModel:v}))}
+                  options={agentConfig.ttsProvider==='elevenlabs'?[{v:'eleven_turbo_v2_5',l:'Turbo v2.5 ⭐'},{v:'eleven_multilingual_v2',l:'Multilingual v2'},{v:'eleven_flash_v2_5',l:'Flash v2.5'}]:[{v:'tts-1',l:'عادي (أسرع)'},{v:'tts-1-hd',l:'HD'}]} />
+              </SG>
+              <div className={`pt-4 border-t ${isDark?'border-[#1f1f23]':'border-gray-200'}`}>
+                <SG label="شخصية الوكيل *" isDark={isDark}>
+                  <textarea rows={5} value={agentConfig.systemPrompt} onChange={e=>setAgentConfig(c=>({...c,systemPrompt:e.target.value}))} placeholder="أنت مساعدة ذكية تعمل في..."
+                    className={`w-full rounded-xl px-3.5 py-2.5 text-sm resize-none leading-relaxed focus:outline-none focus:ring-2 focus:ring-teal-500/30 ${isDark?'bg-[#0a0a0b] border border-[#1f1f23] text-white placeholder:text-gray-600':'bg-gray-50 border border-gray-200 text-gray-900 placeholder:text-gray-400'}`} dir="rtl" />
+                </SG>
+              </div>
+              <SG label="رسالة الترحيب *" isDark={isDark}>
+                <input type="text" value={agentConfig.greeting} onChange={e=>setAgentConfig(c=>({...c,greeting:e.target.value}))} placeholder="أهلاً وسهلاً، كيف أقدر أساعدك؟"
+                  className={`w-full rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30 ${isDark?'bg-[#0a0a0b] border border-[#1f1f23] text-white placeholder:text-gray-600':'bg-gray-50 border border-gray-200 text-gray-900 placeholder:text-gray-400'}`} dir="rtl" />
+              </SG>
+              <div className={`flex items-start gap-2 p-3 rounded-xl ${isDark?'bg-teal-500/5 border border-teal-500/15':'bg-teal-50 border border-teal-200'}`}>
+                <Sparkles className="w-4 h-4 text-teal-400 shrink-0 mt-0.5" />
+                <p className={`text-xs leading-relaxed ${isDark?'text-teal-400/80':'text-teal-700'}`}>الإعدادات تنتقل مباشرة للوكيل عند بدء المكالمة.</p>
+              </div>
+              <button onClick={() => setSettingsOpen(false)} disabled={!canStart}
+                className="w-full py-3 rounded-xl text-sm font-semibold text-white bg-teal-500 hover:bg-teal-400 transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
+                {canStart ? 'حفظ وإغلاق' : 'اكمل الحقول المطلوبة'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
+}
+
+function SG({ label, isDark, children }) {
+  return <div><label className={`block text-xs font-medium mb-1.5 ${isDark?'text-gray-400':'text-gray-500'}`}>{label}</label>{children}</div>;
+}
+function SS({ value, onChange, options, isDark }) {
+  return <select value={value} onChange={e=>onChange(e.target.value)} className={`w-full appearance-none rounded-xl px-3.5 py-2.5 pe-8 text-sm cursor-pointer focus:outline-none focus:ring-2 focus:ring-teal-500/30 ${isDark?'bg-[#0a0a0b] border border-[#1f1f23] text-white':'bg-gray-50 border border-gray-200 text-gray-900'}`}>
+    {options.map(o=><option key={o.v} value={o.v}>{o.l}</option>)}
+  </select>;
 }

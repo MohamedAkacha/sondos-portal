@@ -75,7 +75,7 @@ function AgentCard({ agent, isDark, onEdit, onDelete, onToggleStatus, onTestVoic
   return (
     <div className={`group relative rounded-2xl border p-5 transition-all duration-200 hover:shadow-lg ${
       isDark
-        ? 'bg-[#111113] border-[#1f1f23] hover:border-[#2a2a2e]'
+        ? 'bg-[#111113]/80 border-[#1f1f23] hover:border-teal-500/20 hover:shadow-teal-500/5'
         : 'bg-white border-gray-200 hover:border-gray-300'
     }`}>
 
@@ -183,7 +183,7 @@ function AgentCard({ agent, isDark, onEdit, onDelete, onToggleStatus, onTestVoic
         </button>
         <button
           onClick={() => onTestVoice(agent)}
-          className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-sm font-medium bg-gradient-to-l from-teal-500 to-cyan-500 hover:from-teal-400 hover:to-cyan-400 text-white transition-all"
+          className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-sm font-medium bg-gradient-to-l from-teal-500 to-cyan-500 hover:from-teal-400 hover:to-cyan-400 text-white transition-all shadow-md shadow-teal-500/15"
         >
           <Mic className="w-4 h-4" />
           اختبار صوتي
@@ -206,7 +206,7 @@ function AgentCard({ agent, isDark, onEdit, onDelete, onToggleStatus, onTestVoic
 function EmptyState({ isDark, onCreate }) {
   return (
     <div className={`rounded-2xl border-2 border-dashed p-12 text-center ${
-      isDark ? 'border-[#2a2a2e]' : 'border-gray-200'
+      isDark ? 'border-[#1f1f23]' : 'border-gray-200'
     }`}>
       <div className={`w-16 h-16 rounded-2xl mx-auto mb-4 flex items-center justify-center text-3xl ${
         isDark ? 'bg-[#1a1a1d]' : 'bg-gray-50'
@@ -355,7 +355,7 @@ export default function AgentsPage() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
         <div>
           <h1 className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-            🤖 المساعدين
+            المساعدين الأذكياء
           </h1>
           <p className={`mt-1 text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
             إنشاء وإدارة المساعدين الأذكياء لمكالماتك
@@ -373,7 +373,7 @@ export default function AgentsPage() {
           </button>
           <button
             onClick={handleCreate}
-            className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-l from-teal-500 to-cyan-500 hover:from-teal-400 hover:to-cyan-400 text-white font-bold rounded-xl transition-all"
+            className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-l from-teal-500 to-cyan-500 hover:from-teal-400 hover:to-cyan-400 text-white font-semibold rounded-xl transition-all shadow-lg shadow-teal-500/20 hover:shadow-teal-500/30"
           >
             <Plus className="w-4 h-4" />
             مساعد جديد
