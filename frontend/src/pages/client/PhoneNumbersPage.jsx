@@ -40,11 +40,14 @@ const STATUS_CONFIG = {
   inactive: { label: 'معطّل',   color: 'gray',    icon: XCircle },
   pending:  { label: 'قيد الإعداد', color: 'amber', icon: Clock },
   error:    { label: 'خطأ',     color: 'red',     icon: AlertCircle },
+};
+
 // ── Provider labels ──
 const PROVIDER_LABELS = {
   twilio: { name: 'Twilio', icon: '📞', color: 'red' },
   telnyx: { name: 'Telnyx', icon: '🌐', color: 'blue' },
   custom: { name: 'SIP مخصص', icon: '🔧', color: 'purple' },
+};
 // ══════════════════════════════════════════════════════
 // Status Badge
 // ══════════════════════════════════════════════════════
