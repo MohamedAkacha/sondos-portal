@@ -75,6 +75,13 @@ const agentSchema = new mongoose.Schema({
     },
   },
 
+  // ── Linked Phone Number ──
+  phoneNumberId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'PhoneNumber',
+    default: null,
+  },
+
   // ── Personality (Simple fields → auto-build system prompt) ──
   personality: {
     role: {
@@ -347,6 +354,7 @@ agentSchema.methods.toPublicJSON = function () {
     status: this.status,
     callDirection: this.callDirection,
     outboundSettings: this.outboundSettings,
+    phoneNumberId: this.phoneNumberId,
     personality: this.personality,
     language: this.language,
     greeting: this.greeting,

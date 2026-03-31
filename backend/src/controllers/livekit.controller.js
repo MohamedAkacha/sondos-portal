@@ -205,13 +205,17 @@ exports.webhook = async (req, res) => {
         let phoneNumber = null;
         let direction = 'inbound';
         let destination = null;
+        let campaignId = null;
+        let contactId = null;
         try {
           const meta = room.metadata ? JSON.parse(room.metadata) : {};
           userId = meta.userId || null;
           source = meta.source || 'web';
           phoneNumber = meta.phoneNumber || null;
-          direction = meta.source === 'outbound' ? 'outbound' : roomName.startsWith('sondos-out-') ? 'outbound' : 'inbound';
+          direction = meta.source === 'outbound' ? 'outbound' : roomName.startsWith('sondos-out-') || roomName.startsWith('sondos-camp-') ? 'outbound' : 'inbound';
           destination = meta.destination || null;
+          campaignId = meta.campaignId || null;
+          contactId = meta.contactId || null;
         } catch (e) { /* metadata not JSON, ignore */ }
 
         const updateFields = {
@@ -223,6 +227,7 @@ exports.webhook = async (req, res) => {
           ...(phoneNumber && { phoneNumber }),
           direction,
           ...(destination && { destination }),
+          ...(campaignId && { metadata: { campaignId, contactId } }),
         };
 
         const callRecord = await LiveKitCall.findOneAndUpdate(

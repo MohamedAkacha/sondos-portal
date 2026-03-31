@@ -183,6 +183,9 @@ phoneNumberSchema.methods.toPublicJSON = function () {
     agentId: this.agentId,
     status: this.status,
     statusMessage: this.statusMessage,
+    sipTrunkId: this.sipTrunkId || '',
+    sipDispatchRuleId: this.sipDispatchRuleId || '',
+    sipOutboundTrunkId: this.sipOutboundTrunkId || '',
     customSip: this.provider === 'custom' ? {
       sipServer: this.customSip?.sipServer || '',
       sipUsername: this.customSip?.sipUsername || '',
