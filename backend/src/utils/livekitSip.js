@@ -208,17 +208,14 @@ async function createDispatchRule(config) {
   if (!isConfigured()) throw new Error('LiveKit SIP غير مُعد');
 
   const body = {
+    trunk_ids: config.trunkIds || [],
+    name: config.name || 'Sondos Dispatch Rule',
+    metadata: config.metadata ? JSON.stringify(config.metadata) : '',
     rule: {
-      name: config.name || 'Sondos Dispatch Rule',
-      trunk_ids: config.trunkIds || [],
-      // Create a new room for each call with auto-generated name
-      rule: {
-        dispatchRuleIndividual: {
-          room_prefix: config.roomPrefix || 'sondos-sip-',
-          pin: config.pin || '',
-        },
+      dispatch_rule_individual: {
+        room_prefix: config.roomPrefix || 'sondos-sip-',
+        pin: config.pin || '',
       },
-      metadata: config.metadata ? JSON.stringify(config.metadata) : '',
     },
   };
 
