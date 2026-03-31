@@ -415,20 +415,36 @@ exports.setupSip = async (req, res) => {
     if (phone.sipTrunkId) {
       try { await livekitSip.deleteSipTrunk(phone.sipTrunkId); } catch (e) {}
     }
+    if (phone.sipOutboundTrunkId) {
+      try { await livekitSip.deleteSipTrunk(phone.sipOutboundTrunkId); } catch (e) {}
+    }
 
-    // Create new SIP setup
+    // Determine SIP address for outbound
+    let sipAddress = '';
+    if (phone.provider === 'custom' && phone.customSip?.sipServer) {
+      sipAddress = phone.customSip.sipServer;
+    } else if (phone.provider === 'twilio') {
+      sipAddress = `${phone.phoneNumber.replace('+', '')}@${process.env.TWILIO_ACCOUNT_SID}.sip.twilio.com`;
+    } else if (phone.provider === 'telnyx') {
+      sipAddress = `${phone.phoneNumber.replace('+', '')}@sip.telnyx.com`;
+    }
+
+    // Create new SIP setup (direction-aware)
     const sipResult = await livekitSip.setupPhoneNumber({
       phoneNumber: phone.phoneNumber,
       agentName: agent.name,
       agentConfig: agent.toLiveKitConfig(),
       userId: phone.userId.toString(),
-      allowedAddresses: phone.customSip?.sipServer ? [phone.customSip.sipServer] : [],
-      authUsername: phone.customSip?.sipUsername || '',
-      authPassword: phone.getSipPassword(),
+      direction: agent.callDirection || 'inbound',
+      sipAddress,
+      allowedAddresses: phone.customSip?.sipServer ? [phone.customSip.sipServer.split(':')[0]] : [],
+      authUsername: phone.provider === 'custom' ? (phone.customSip?.sipUsername || '') : '',
+      authPassword: phone.provider === 'custom' ? phone.getSipPassword() : '',
     });
 
-    phone.sipTrunkId = sipResult.sipTrunkId;
-    phone.sipDispatchRuleId = sipResult.sipDispatchRuleId;
+    phone.sipTrunkId = sipResult.sipTrunkId || '';
+    phone.sipDispatchRuleId = sipResult.sipDispatchRuleId || '';
+    phone.sipOutboundTrunkId = sipResult.sipOutboundTrunkId || '';
     phone.status = 'active';
     phone.statusMessage = '';
     await phone.save();

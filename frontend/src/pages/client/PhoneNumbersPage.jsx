@@ -161,10 +161,10 @@ function PhoneCard({ phone, isDark, agents, onUpdate, onDelete, onSetupSip, onTo
                 <div className={`absolute left-0 top-8 z-20 w-48 rounded-xl border shadow-xl py-1.5 ${
                   isDark ? 'bg-[#1a1a1d] border-[#2a2a2e]' : 'bg-white border-gray-200'
                 }`} dir="rtl">
-                  {phone.status === 'pending' && (
+                  {phone.agentId && (
                     <button onClick={() => { onSetupSip(phone); setMenuOpen(false); }}
                       className={`w-full flex items-center gap-2.5 px-4 py-2.5 text-sm ${isDark ? 'text-gray-300 hover:bg-[#1f1f23]' : 'text-gray-700 hover:bg-gray-50'}`}>
-                      <Wifi className="w-4 h-4" /> إعادة إعداد SIP
+                      <Wifi className="w-4 h-4" /> {phone.sipTrunkId ? 'إعادة إعداد SIP' : 'إعداد SIP'}
                     </button>
                   )}
                   {phone.sipTrunkId && (
