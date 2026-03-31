@@ -29,6 +29,11 @@ async function generateApiToken() {
     roomJoin: true,
     roomList: true,
   });
+  // SIP permissions — required for trunk/rule management
+  token.addSIPGrant({
+    admin: true,
+    call: true,
+  });
   return await token.toJwt();
 }
 
