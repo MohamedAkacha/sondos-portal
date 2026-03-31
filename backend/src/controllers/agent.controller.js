@@ -35,6 +35,9 @@ exports.listAgents = async (req, res) => {
         description: a.description,
         avatar: a.avatar,
         status: a.status,
+        callDirection: a.callDirection || 'inbound',
+        outboundSettings: a.outboundSettings,
+        phoneNumberId: a.phoneNumberId,
         language: a.language,
         personality: a.personality,
         voice: a.voice,
@@ -96,6 +99,7 @@ exports.createAgent = async (req, res) => {
       systemPrompt, useCustomPrompt,
       voice, llm, stt,
       workingHours, maxCallDuration,
+      callDirection, outboundSettings, phoneNumberId,
     } = req.body;
 
     // If creating from template, merge template defaults
@@ -129,8 +133,77 @@ exports.createAgent = async (req, res) => {
       stt: stt,
       workingHours: workingHours,
       maxCallDuration: maxCallDuration || 300,
+      callDirection: callDirection || 'inbound',
+      outboundSettings: outboundSettings || {},
       templateId: templateId || null,
     });
+
+    // ── Link phone number if provided (bidirectional + SIP setup) ──
+    if (phoneNumberId) {
+      try {
+        const phone = await PhoneNumber.findOne({ _id: phoneNumberId, userId: req.user._id });
+        if (phone) {
+          // Link phone → agent
+          phone.agentId = agent._id;
+
+          // Link agent → phone
+          agent.phoneNumberId = phone._id;
+          await agent.save();
+
+          // ── Setup SIP trunks based on callDirection ──
+          if (livekitSip.isConfigured()) {
+            try {
+              // Teardown old SIP if exists
+              if (phone.sipTrunkId || phone.sipDispatchRuleId || phone.sipOutboundTrunkId) {
+                await livekitSip.teardownPhoneNumber(
+                  phone.sipTrunkId, phone.sipDispatchRuleId, phone.sipOutboundTrunkId
+                );
+              }
+
+              // Determine SIP address for outbound
+              let sipAddress = '';
+              if (phone.provider === 'custom' && phone.customSip?.sipServer) {
+                sipAddress = phone.customSip.sipServer;
+              } else if (phone.provider === 'twilio') {
+                sipAddress = `${phone.phoneNumber.replace('+', '')}@${process.env.TWILIO_ACCOUNT_SID}.sip.twilio.com`;
+              } else if (phone.provider === 'telnyx') {
+                sipAddress = `${phone.phoneNumber.replace('+', '')}@sip.telnyx.com`;
+              }
+
+              const sipResult = await livekitSip.setupPhoneNumber({
+                phoneNumber: phone.phoneNumber,
+                agentName: agent.name,
+                agentConfig: agent.toLiveKitConfig(),
+                userId: req.user._id.toString(),
+                direction: agent.callDirection || 'inbound',
+                sipAddress,
+                authUsername: phone.provider === 'custom' ? (phone.customSip?.sipUsername || '') : '',
+                authPassword: phone.provider === 'custom' ? phone.getSipPassword() : '',
+                allowedAddresses: phone.customSip?.sipServer ? [phone.customSip.sipServer.split(':')[0]] : [],
+              });
+
+              phone.sipTrunkId = sipResult.sipTrunkId || '';
+              phone.sipDispatchRuleId = sipResult.sipDispatchRuleId || '';
+              phone.sipOutboundTrunkId = sipResult.sipOutboundTrunkId || '';
+              phone.status = 'active';
+              phone.statusMessage = '';
+
+              console.log(`[Agent Created] SIP setup for ${phone.phoneNumber}: inbound=${!!sipResult.sipTrunkId} outbound=${!!sipResult.sipOutboundTrunkId}`);
+            } catch (sipErr) {
+              console.error('[Agent Create] SIP setup failed:', sipErr.message);
+              phone.status = 'error';
+              phone.statusMessage = `فشل إعداد SIP: ${sipErr.message}`;
+            }
+          }
+
+          await phone.save();
+          console.log(`[Agent Created] Linked phone ${phone.phoneNumber} to agent ${agent.name}`);
+        }
+      } catch (linkErr) {
+        console.error('[Agent Create] Phone link failed:', linkErr.message);
+        // Don't fail agent creation if phone link fails
+      }
+    }
 
     console.log(`[Agent Created] ${agent.name} by ${req.user.email}`);
 
@@ -158,6 +231,7 @@ exports.updateAgent = async (req, res) => {
     // Allowed fields to update
     const allowedFields = [
       'name', 'description', 'avatar', 'status',
+      'callDirection', 'outboundSettings', 'phoneNumberId',
       'personality', 'language', 'greeting',
       'systemPrompt', 'useCustomPrompt',
       'voice', 'llm', 'stt',
@@ -177,6 +251,28 @@ exports.updateAgent = async (req, res) => {
     }
 
     await agent.save();
+
+    // ── Sync phoneNumberId change (bidirectional) ──
+    if (req.body.phoneNumberId !== undefined) {
+      try {
+        // Unlink old phone if agent had one
+        const oldPhone = await PhoneNumber.findOne({ agentId: agent._id, _id: { $ne: agent.phoneNumberId } });
+        if (oldPhone) {
+          oldPhone.agentId = null;
+          await oldPhone.save();
+        }
+        // Link new phone
+        if (agent.phoneNumberId) {
+          const newPhone = await PhoneNumber.findOne({ _id: agent.phoneNumberId, userId: req.user._id });
+          if (newPhone) {
+            newPhone.agentId = agent._id;
+            await newPhone.save();
+          }
+        }
+      } catch (linkErr) {
+        console.error('[Agent Update] Phone link sync failed:', linkErr.message);
+      }
+    }
 
     // ── Sync linked phones when agent STATUS changes ──
     const statusChanged = req.body.status !== undefined;
@@ -242,6 +338,101 @@ exports.updateAgent = async (req, res) => {
         }
       } catch (syncErr) {
         console.error('[Agent Status Sync] Error:', syncErr.message);
+      }
+    }
+
+    // ── Sync SIP trunks when callDirection changes ──
+    const directionChanged = req.body.callDirection !== undefined;
+    if (directionChanged && livekitSip.isConfigured()) {
+      try {
+        const linkedPhones = await PhoneNumber.find({
+          agentId: agent._id,
+        });
+
+        for (const phone of linkedPhones) {
+          const dir = agent.callDirection || 'inbound';
+
+          // Determine SIP address for outbound
+          let sipAddress = '';
+          if (phone.provider === 'custom' && phone.customSip?.sipServer) {
+            sipAddress = phone.customSip.sipServer;
+          } else if (phone.provider === 'twilio') {
+            sipAddress = `${phone.phoneNumber.replace('+', '')}@${process.env.TWILIO_ACCOUNT_SID}.sip.twilio.com`;
+          } else if (phone.provider === 'telnyx') {
+            sipAddress = `${phone.phoneNumber.replace('+', '')}@sip.telnyx.com`;
+          }
+
+          // ── Need outbound trunk but don't have one ──
+          if ((dir === 'outbound' || dir === 'both') && !phone.sipOutboundTrunkId && sipAddress) {
+            try {
+              const outTrunk = await livekitSip.createOutboundTrunk({
+                name: `Sondos Outbound - ${phone.phoneNumber}`,
+                address: sipAddress,
+                numbers: [phone.phoneNumber],
+                authUsername: phone.provider === 'custom' ? (phone.customSip?.sipUsername || '') : '',
+                authPassword: phone.provider === 'custom' ? phone.getSipPassword() : '',
+              });
+              phone.sipOutboundTrunkId = outTrunk.sipTrunkId;
+              await phone.save();
+              console.log(`[Agent Direction Sync] Created outbound trunk for ${phone.phoneNumber}`);
+            } catch (e) {
+              console.error(`[Agent Direction Sync] Outbound trunk failed for ${phone.phoneNumber}:`, e.message);
+            }
+          }
+
+          // ── Have outbound trunk but no longer need it ──
+          if (dir === 'inbound' && phone.sipOutboundTrunkId) {
+            try {
+              await livekitSip.deleteSipTrunk(phone.sipOutboundTrunkId);
+              phone.sipOutboundTrunkId = '';
+              await phone.save();
+              console.log(`[Agent Direction Sync] Removed outbound trunk for ${phone.phoneNumber}`);
+            } catch (e) {
+              console.error(`[Agent Direction Sync] Outbound trunk delete failed for ${phone.phoneNumber}:`, e.message);
+            }
+          }
+
+          // ── Need inbound trunk but don't have one (switched from outbound to both) ──
+          if ((dir === 'inbound' || dir === 'both') && !phone.sipTrunkId) {
+            try {
+              const agentConfig = agent.toLiveKitConfig();
+              const sipResult = await livekitSip.setupPhoneNumber({
+                phoneNumber: phone.phoneNumber,
+                agentName: agent.name,
+                agentConfig,
+                userId: agent.userId.toString(),
+                direction: 'inbound',
+                authUsername: phone.provider === 'custom' ? (phone.customSip?.sipUsername || '') : '',
+                authPassword: phone.provider === 'custom' ? phone.getSipPassword() : '',
+                allowedAddresses: phone.customSip?.sipServer ? [phone.customSip.sipServer.split(':')[0]] : [],
+              });
+              phone.sipTrunkId = sipResult.sipTrunkId || '';
+              phone.sipDispatchRuleId = sipResult.sipDispatchRuleId || '';
+              phone.status = 'active';
+              phone.statusMessage = '';
+              await phone.save();
+              console.log(`[Agent Direction Sync] Created inbound trunk for ${phone.phoneNumber}`);
+            } catch (e) {
+              console.error(`[Agent Direction Sync] Inbound trunk failed for ${phone.phoneNumber}:`, e.message);
+            }
+          }
+
+          // ── Have inbound trunk but no longer need it (switched to outbound only) ──
+          if (dir === 'outbound' && (phone.sipTrunkId || phone.sipDispatchRuleId)) {
+            try {
+              if (phone.sipDispatchRuleId) await livekitSip.deleteDispatchRule(phone.sipDispatchRuleId);
+              if (phone.sipTrunkId) await livekitSip.deleteSipTrunk(phone.sipTrunkId);
+              phone.sipTrunkId = '';
+              phone.sipDispatchRuleId = '';
+              await phone.save();
+              console.log(`[Agent Direction Sync] Removed inbound trunk for ${phone.phoneNumber}`);
+            } catch (e) {
+              console.error(`[Agent Direction Sync] Inbound trunk delete failed for ${phone.phoneNumber}:`, e.message);
+            }
+          }
+        }
+      } catch (syncErr) {
+        console.error('[Agent Direction Sync] Error:', syncErr.message);
       }
     }
 

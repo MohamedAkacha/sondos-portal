@@ -29,6 +29,7 @@ const agentAuth = (req, res, next) => {
 };
 
 router.post('/agent/transcript', agentAuth, livekitCtrl.agentTranscript);
+router.post('/agent/call-result', agentAuth, livekitCtrl.agentCallResult);
 
 // ══════════════════════════════════════════════════════
 // 3. USER ENDPOINTS — JWT auth required

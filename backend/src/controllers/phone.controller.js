@@ -319,6 +319,17 @@ exports.updatePhone = async (req, res) => {
 
         phone.agentId = agent._id;
 
+        // ── Bidirectional sync: update agent.phoneNumberId ──
+        // Clear old agent's phoneNumberId if phone was linked to another agent
+        const oldAgent = await Agent.findOne({ phoneNumberId: phone._id, _id: { $ne: agent._id } });
+        if (oldAgent) {
+          oldAgent.phoneNumberId = null;
+          await oldAgent.save();
+        }
+        // Set new agent's phoneNumberId
+        agent.phoneNumberId = phone._id;
+        await agent.save();
+
         // Update LiveKit SIP dispatch rule with new agent config
         if (phone.sipTrunkId && phone.sipDispatchRuleId && livekitSip.isConfigured()) {
           try {
@@ -344,7 +355,14 @@ exports.updatePhone = async (req, res) => {
           }
         }
       } else {
-        // Unlink agent
+        // Unlink agent — clear both directions
+        if (phone.agentId) {
+          const oldAgent = await Agent.findById(phone.agentId);
+          if (oldAgent && oldAgent.phoneNumberId?.toString() === phone._id.toString()) {
+            oldAgent.phoneNumberId = null;
+            await oldAgent.save();
+          }
+        }
         phone.agentId = null;
       }
     }
@@ -670,6 +688,7 @@ exports.initiateOutbound = async (req, res) => {
     }
 
     const agentConfig = agent.toLiveKitConfig();
+    const outbound = agent.outboundSettings || {};
     const userId = req.user._id.toString();
     const roomName = `sondos-out-${userId.slice(-6)}-${Date.now().toString(36)}`;
 
@@ -706,7 +725,7 @@ exports.initiateOutbound = async (req, res) => {
       }
     }
 
-    // ── Step 3: Create room with agent metadata ──
+    // ── Step 3: Create room with outbound-aware metadata ──
     const { RoomServiceClient } = require('livekit-server-sdk');
     const httpUrl = process.env.LIVEKIT_URL.replace('wss://', 'https://').replace('ws://', 'http://');
     const roomService = new RoomServiceClient(httpUrl, process.env.LIVEKIT_API_KEY, process.env.LIVEKIT_API_SECRET);
@@ -716,11 +735,18 @@ exports.initiateOutbound = async (req, res) => {
       emptyTimeout: 120,
       maxParticipants: 4,
       metadata: JSON.stringify({
-        agentConfig,
+        agentConfig: {
+          ...agentConfig,
+          // Override greeting with outbound opening message
+          greeting: outbound.openingMessage || agentConfig.greeting,
+          callDirection: 'outbound',
+        },
         userId,
         source: 'outbound',
+        direction: 'outbound',
         phoneNumber: phone.phoneNumber,
         destination,
+        objective: outbound.objective || '',
       }),
     });
 
@@ -733,7 +759,7 @@ exports.initiateOutbound = async (req, res) => {
       participantName: destination,
     });
 
-    // ── Step 5: Create call record ──
+    // ── Step 5: Create call record with direction + destination ──
     const LiveKitCall = require('../models/LiveKitCall');
     await LiveKitCall.create({
       roomName,
@@ -742,16 +768,17 @@ exports.initiateOutbound = async (req, res) => {
       status: 'active',
       startedAt: new Date(),
       source: 'sip',
+      direction: 'outbound',
       phoneNumber: phone.phoneNumber,
+      destination,
       agentConfig: agent.toLiveKitConfig(),
       metadata: {
-        direction: 'outbound',
-        destination,
         sipCallId: sipResult.sipCallId,
+        objective: outbound.objective || '',
       },
     });
 
-    console.log(`[Outbound Call] ${phone.phoneNumber} → ${destination} | Room: ${roomName} | Agent: ${agent.name}`);
+    console.log(`[Outbound Call] ${phone.phoneNumber} → ${destination} | Room: ${roomName} | Agent: ${agent.name} | Objective: ${outbound.objective || 'none'}`);
 
     res.json({
       success: true,

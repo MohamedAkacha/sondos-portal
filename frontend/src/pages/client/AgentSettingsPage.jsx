@@ -1,7 +1,7 @@
 // =====================================================
 // Agent Settings Page — إعدادات المساعد الذكي
 // ─────────────────────────────────────────────────────
-// Tabs: أساسي | الشخصية | الصوت | متقدم | المحادثة
+// Tabs: أساسي | الشخصية | الصوت | متقدم | رقم الهاتف | المحادثة
 // 3-layer approach: simple → advanced → technical
 // =====================================================
 import { useState, useEffect, useCallback, useRef } from "react";
@@ -11,10 +11,13 @@ import {
   User, Mic, Brain, Settings, MessageSquare, Sparkles,
   Volume2, Globe, Clock, ChevronDown, ChevronUp, Info,
   Play, RotateCcw, Send, Trash2,
+  Phone, PhoneIncoming, PhoneOutgoing, Activity, Wifi, XCircle,
 } from "lucide-react";
 import { useTheme } from "@/hooks/useTheme";
 import { useLanguage } from "@/hooks/useLanguage";
 import { getAgent, updateAgent, chatWithAgent, suggestContent } from "@/services/api/agentAPI";
+import { phoneAPI } from "@/services/api/phoneAPI";
+import { listLivekitCalls } from "@/services/api/livekitAPI";
 
 // ── Constants ──
 const ROLES = [
@@ -677,6 +680,407 @@ function AdvancedTab({ agent, setAgent, isDark }) {
 }
 
 // ══════════════════════════════════════════════════════
+// Tab: Phone Number
+// ══════════════════════════════════════════════════════
+function PhoneTab({ agent, setAgent, isDark, onSave }) {
+  const [phones, setPhones] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [health, setHealth] = useState(null);
+  const [checking, setChecking] = useState(false);
+  const [changing, setChanging] = useState(false);
+  const [selectedPhoneId, setSelectedPhoneId] = useState(agent.phoneNumberId || '');
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const res = await phoneAPI.list();
+        setPhones(res.phones || []);
+      } catch (e) {
+        console.error('Failed to load phones:', e);
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, []);
+
+  const linkedPhone = phones.find(p => p.id === agent.phoneNumberId || p.agentId === agent.id);
+
+  const handleChangePhone = async () => {
+    if (selectedPhoneId === (agent.phoneNumberId || '')) return;
+    setChanging(true);
+    try {
+      setAgent(prev => ({ ...prev, phoneNumberId: selectedPhoneId || null }));
+      if (onSave) await onSave({ phoneNumberId: selectedPhoneId || null });
+    } finally {
+      setChanging(false);
+    }
+  };
+
+  const handleHealthCheck = async () => {
+    if (!linkedPhone) return;
+    setChecking(true);
+    try {
+      const res = await phoneAPI.healthCheck(linkedPhone.id);
+      setHealth(res.health);
+    } catch (e) {
+      setHealth({ overall: 'error' });
+    } finally {
+      setChecking(false);
+    }
+  };
+
+  const direction = agent.callDirection || 'inbound';
+  const availablePhones = phones.filter(p => !p.agentId || p.id === linkedPhone?.id);
+
+  return (
+    <div className="space-y-6">
+      {/* ── Current Phone ── */}
+      <div className={`rounded-2xl border p-5 ${isDark ? 'bg-[#111113] border-[#1f1f23]' : 'bg-white border-gray-200'}`}>
+        <h3 className={`text-sm font-bold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+          <Phone className="w-4 h-4 inline ml-2" /> الرقم المربوط
+        </h3>
+
+        {linkedPhone ? (
+          <div className="space-y-4">
+            {/* Phone info */}
+            <div className={`flex items-center justify-between p-4 rounded-xl ${isDark ? 'bg-[#0a0a0b] border border-[#1f1f23]' : 'bg-gray-50 border border-gray-200'}`}>
+              <div>
+                <p className={`font-mono font-bold text-lg ${isDark ? 'text-white' : 'text-gray-900'}`} dir="ltr">
+                  {linkedPhone.phoneNumber}
+                </p>
+                <div className="flex items-center gap-2 mt-1">
+                  {linkedPhone.friendlyName && <span className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>{linkedPhone.friendlyName}</span>}
+                  <span className={`text-xs px-1.5 py-0.5 rounded ${isDark ? 'bg-[#1a1a1d] text-gray-500' : 'bg-gray-100 text-gray-500'}`}>
+                    {linkedPhone.provider === 'custom' ? 'SIP مخصص' : linkedPhone.provider}
+                  </span>
+                </div>
+              </div>
+              <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${
+                linkedPhone.status === 'active' ? (isDark ? 'bg-emerald-500/10 text-emerald-400' : 'bg-emerald-50 text-emerald-600')
+                : isDark ? 'bg-gray-500/10 text-gray-400' : 'bg-gray-100 text-gray-500'
+              }`}>
+                {linkedPhone.status === 'active' ? 'نشط' : linkedPhone.status === 'inactive' ? 'معطّل' : linkedPhone.status}
+              </span>
+            </div>
+
+            {/* SIP Status */}
+            <div className={`grid grid-cols-2 gap-3`}>
+              <div className={`flex items-center gap-2 p-3 rounded-xl text-xs ${
+                linkedPhone.sipTrunkId
+                  ? (isDark ? 'bg-emerald-500/10 text-emerald-400' : 'bg-emerald-50 text-emerald-600')
+                  : (isDark ? 'bg-gray-500/10 text-gray-500' : 'bg-gray-50 text-gray-400')
+              }`}>
+                <PhoneIncoming className="w-4 h-4" />
+                <span>{linkedPhone.sipTrunkId ? 'Inbound SIP ✓' : 'Inbound —'}</span>
+              </div>
+              <div className={`flex items-center gap-2 p-3 rounded-xl text-xs ${
+                linkedPhone.sipOutboundTrunkId
+                  ? (isDark ? 'bg-emerald-500/10 text-emerald-400' : 'bg-emerald-50 text-emerald-600')
+                  : (isDark ? 'bg-gray-500/10 text-gray-500' : 'bg-gray-50 text-gray-400')
+              }`}>
+                <PhoneOutgoing className="w-4 h-4" />
+                <span>{linkedPhone.sipOutboundTrunkId ? 'Outbound SIP ✓' : 'Outbound —'}</span>
+              </div>
+            </div>
+
+            {/* Direction mismatch warning */}
+            {direction !== 'inbound' && !linkedPhone.sipOutboundTrunkId && (
+              <div className={`flex items-start gap-2 p-3 rounded-xl text-xs ${isDark ? 'bg-amber-500/10 border border-amber-500/20 text-amber-300' : 'bg-amber-50 border border-amber-200 text-amber-700'}`}>
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                <p>الوكيل يدعم مكالمات صادرة لكن الرقم لا يحتوي Outbound SIP Trunk. أعد إعداد SIP أو غيّر نوع المكالمات.</p>
+              </div>
+            )}
+
+            {/* Health Check */}
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleHealthCheck}
+                disabled={checking}
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-medium border transition-all ${
+                  isDark ? 'border-[#1f1f23] text-gray-400 hover:text-white hover:bg-[#1a1a1d]' : 'border-gray-200 text-gray-500 hover:bg-gray-50'
+                } disabled:opacity-50`}
+              >
+                {checking ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Activity className="w-3.5 h-3.5" />}
+                فحص الاتصال
+              </button>
+
+              {health && !checking && (
+                <span className={`text-xs px-3 py-1.5 rounded-lg ${
+                  health.overall === 'healthy' ? (isDark ? 'bg-emerald-500/10 text-emerald-400' : 'bg-emerald-50 text-emerald-600')
+                  : health.overall === 'no_agent' ? (isDark ? 'bg-amber-500/10 text-amber-400' : 'bg-amber-50 text-amber-600')
+                  : (isDark ? 'bg-red-500/10 text-red-400' : 'bg-red-50 text-red-600')
+                }`}>
+                  {health.overall === 'healthy' ? '✓ سليم' : health.overall === 'no_agent' ? '⚠ بدون وكيل' : `✕ ${health.overall}`}
+                </span>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className={`text-center py-6 rounded-xl border border-dashed ${isDark ? 'border-[#2a2a2e] text-gray-600' : 'border-gray-300 text-gray-400'}`}>
+            <Phone className="w-8 h-8 mx-auto mb-2 opacity-30" />
+            <p className="text-sm">لا يوجد رقم مربوط</p>
+            <p className="text-xs mt-1">اختر رقم من القائمة أدناه</p>
+          </div>
+        )}
+      </div>
+
+      {/* ── Change / Assign Phone ── */}
+      <div className={`rounded-2xl border p-5 ${isDark ? 'bg-[#111113] border-[#1f1f23]' : 'bg-white border-gray-200'}`}>
+        <h3 className={`text-sm font-bold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+          {linkedPhone ? 'تغيير الرقم' : 'ربط رقم'}
+        </h3>
+
+        {loading ? (
+          <div className="flex justify-center py-4"><Loader2 className="w-5 h-5 animate-spin text-gray-500" /></div>
+        ) : (
+          <div className="space-y-3">
+            <select
+              value={selectedPhoneId}
+              onChange={e => setSelectedPhoneId(e.target.value)}
+              className={`w-full px-4 py-3 rounded-xl border text-sm ${isDark ? 'bg-[#0a0a0b] border-[#1f1f23] text-white' : 'bg-gray-50 border-gray-200'}`}
+            >
+              <option value="">— بدون رقم —</option>
+              {availablePhones.map(p => (
+                <option key={p.id} value={p.id}>
+                  {p.phoneNumber} {p.friendlyName ? `(${p.friendlyName})` : ''} — {p.provider === 'custom' ? 'SIP' : p.provider}
+                </option>
+              ))}
+            </select>
+
+            {selectedPhoneId !== (agent.phoneNumberId || '') && (
+              <button
+                onClick={handleChangePhone}
+                disabled={changing}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold bg-teal-500 hover:bg-teal-400 text-white disabled:opacity-50 transition-colors"
+              >
+                {changing ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
+                {linkedPhone ? 'تغيير الرقم' : 'ربط الرقم'}
+              </button>
+            )}
+
+            {availablePhones.length === 0 && (
+              <p className={`text-xs ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>
+                لا توجد أرقام متاحة — أضف رقم من <a href="/phones" className="text-teal-400 hover:underline">صفحة أرقام الهاتف</a>
+              </p>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════
+// Tab: Outbound Calls
+// ══════════════════════════════════════════════════════
+function OutboundTab({ agent, isDark }) {
+  const [calls, setCalls] = useState([]);
+  const [stats, setStats] = useState({ total: 0, answered: 0, succeeded: 0 });
+  const [loading, setLoading] = useState(true);
+  const [showDialer, setShowDialer] = useState(false);
+  const [destination, setDestination] = useState('');
+  const [calling, setCalling] = useState(false);
+  const [callResult, setCallResult] = useState(null);
+  const [callError, setCallError] = useState(null);
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const res = await listLivekitCalls({ direction: 'outbound', limit: 20 });
+        const agentCalls = (res.calls || []).filter(c => c.agentId === agent.id);
+        setCalls(agentCalls);
+
+        // Calculate stats
+        const total = agentCalls.length;
+        const answered = agentCalls.filter(c => c.durationSeconds > 0).length;
+        const succeeded = agentCalls.filter(c => c.callResult === 'succeeded').length;
+        setStats({ total, answered, succeeded });
+      } catch (e) {
+        console.error('Failed to load outbound calls:', e);
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, [agent.id]);
+
+  const handleDial = async () => {
+    if (!destination.startsWith('+') || !agent.phoneNumberId) return;
+    setCalling(true);
+    setCallError(null);
+    setCallResult(null);
+    try {
+      // Find linked phone to make the call
+      const phonesRes = await phoneAPI.list();
+      const linkedPhone = (phonesRes.phones || []).find(p => p.agentId === agent.id);
+      if (!linkedPhone) {
+        setCallError('لا يوجد رقم مربوط — اربط رقم من تاب الهاتف أولاً');
+        return;
+      }
+      const res = await phoneAPI.outbound(linkedPhone.id, destination);
+      setCallResult(res);
+    } catch (e) {
+      setCallError(e.message || 'فشل إجراء المكالمة');
+    } finally {
+      setCalling(false);
+    }
+  };
+
+  const fmtDuration = (secs) => {
+    if (!secs) return '—';
+    const m = Math.floor(secs / 60);
+    const s = secs % 60;
+    return `${m}:${s.toString().padStart(2, '0')}`;
+  };
+
+  const fmtDate = (d) => {
+    if (!d) return '—';
+    try { return new Date(d).toLocaleDateString('ar-SA', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }); }
+    catch { return '—'; }
+  };
+
+  const RESULT_LABELS = {
+    succeeded: { label: 'نجحت', color: 'emerald' },
+    refused: { label: 'رفض', color: 'red' },
+    callback_requested: { label: 'طلب معاودة', color: 'amber' },
+    no_answer: { label: 'لم يرد', color: 'gray' },
+    error: { label: 'خطأ', color: 'red' },
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* ── Stats ── */}
+      <div className="grid grid-cols-3 gap-3">
+        {[
+          { label: 'إجمالي المكالمات', value: stats.total, icon: PhoneOutgoing, color: 'teal' },
+          { label: 'نسبة الرد', value: stats.total > 0 ? `${Math.round(stats.answered / stats.total * 100)}%` : '—', icon: Phone, color: 'blue' },
+          { label: 'نسبة النجاح', value: stats.total > 0 ? `${Math.round(stats.succeeded / stats.total * 100)}%` : '—', icon: CheckCircle, color: 'emerald' },
+        ].map(s => (
+          <div key={s.label} className={`rounded-xl border p-4 ${isDark ? 'bg-[#111113] border-[#1f1f23]' : 'bg-white border-gray-200'}`}>
+            <s.icon className={`w-5 h-5 mb-2 text-${s.color}-400`} />
+            <p className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>{s.value}</p>
+            <p className={`text-xs mt-0.5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>{s.label}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* ── Dialer ── */}
+      <div className={`rounded-2xl border p-5 ${isDark ? 'bg-[#111113] border-[#1f1f23]' : 'bg-white border-gray-200'}`}>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className={`text-sm font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+            <PhoneOutgoing className="w-4 h-4 inline ml-2" /> مكالمة صادرة جديدة
+          </h3>
+          {!agent.phoneNumberId && (
+            <span className={`text-xs ${isDark ? 'text-amber-400' : 'text-amber-600'}`}>⚠ اربط رقم أولاً</span>
+          )}
+        </div>
+
+        {!callResult ? (
+          <div className="space-y-3">
+            <input
+              type="tel" dir="ltr"
+              placeholder="+966501234567"
+              value={destination}
+              onChange={e => setDestination(e.target.value)}
+              className={`w-full px-4 py-3 rounded-xl border text-base font-mono text-center tracking-wider ${
+                isDark ? 'bg-[#0a0a0b] border-[#1f1f23] text-white placeholder:text-gray-600' : 'bg-gray-50 border-gray-200 placeholder:text-gray-400'
+              } focus:outline-none focus:ring-2 focus:ring-teal-500/30`}
+            />
+
+            {agent.outboundSettings?.objective && (
+              <div className={`flex items-start gap-2 p-3 rounded-xl text-xs ${isDark ? 'bg-[#0a0a0b] border border-[#1f1f23]' : 'bg-gray-50 border border-gray-200'}`}>
+                <Bot className={`w-4 h-4 shrink-0 mt-0.5 ${isDark ? 'text-teal-400' : 'text-teal-500'}`} />
+                <p className={isDark ? 'text-gray-400' : 'text-gray-500'}>
+                  الهدف: <strong className={isDark ? 'text-white' : 'text-gray-900'}>{agent.outboundSettings.objective}</strong>
+                </p>
+              </div>
+            )}
+
+            {callError && (
+              <div className={`flex items-center gap-2 p-3 rounded-xl text-xs ${isDark ? 'bg-red-500/10 text-red-400' : 'bg-red-50 text-red-600'}`}>
+                <AlertCircle className="w-3.5 h-3.5" /> {callError}
+              </div>
+            )}
+
+            <button
+              onClick={handleDial}
+              disabled={!destination.startsWith('+') || calling || !agent.phoneNumberId}
+              className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold bg-gradient-to-l from-teal-500 to-cyan-500 hover:from-teal-400 hover:to-cyan-400 text-white disabled:opacity-50 transition-all"
+            >
+              {calling ? <Loader2 className="w-4 h-4 animate-spin" /> : <PhoneOutgoing className="w-4 h-4" />}
+              {calling ? 'جاري الاتصال...' : 'اتصل الآن'}
+            </button>
+          </div>
+        ) : (
+          <div className="text-center space-y-3">
+            <div className="w-12 h-12 rounded-full mx-auto flex items-center justify-center bg-emerald-500/10">
+              <PhoneOutgoing className="w-6 h-6 text-emerald-400" />
+            </div>
+            <p className={`font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>جاري الاتصال</p>
+            <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`} dir="ltr">{destination}</p>
+            <button onClick={() => { setCallResult(null); setDestination(''); }}
+              className={`text-xs px-4 py-2 rounded-lg ${isDark ? 'bg-[#1a1a1d] text-gray-400' : 'bg-gray-100 text-gray-600'}`}>
+              مكالمة جديدة
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* ── Recent Calls ── */}
+      <div className={`rounded-2xl border p-5 ${isDark ? 'bg-[#111113] border-[#1f1f23]' : 'bg-white border-gray-200'}`}>
+        <h3 className={`text-sm font-bold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+          آخر المكالمات الصادرة
+        </h3>
+
+        {loading ? (
+          <div className="flex justify-center py-6"><Loader2 className="w-5 h-5 animate-spin text-gray-500" /></div>
+        ) : calls.length === 0 ? (
+          <div className={`text-center py-6 ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>
+            <PhoneOutgoing className="w-8 h-8 mx-auto mb-2 opacity-30" />
+            <p className="text-sm">لا توجد مكالمات صادرة بعد</p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {calls.slice(0, 10).map(call => {
+              const r = RESULT_LABELS[call.callResult] || null;
+              return (
+                <div key={call._id || call.roomName} className={`flex items-center justify-between p-3 rounded-xl ${isDark ? 'bg-[#0a0a0b]' : 'bg-gray-50'}`}>
+                  <div className="flex items-center gap-3">
+                    <PhoneOutgoing className={`w-4 h-4 ${isDark ? 'text-gray-500' : 'text-gray-400'}`} />
+                    <div>
+                      <p className={`text-sm font-mono ${isDark ? 'text-white' : 'text-gray-900'}`} dir="ltr">
+                        {call.destination || call.metadata?.destination || '—'}
+                      </p>
+                      <p className={`text-xs ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>{fmtDate(call.startedAt)}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>{fmtDuration(call.durationSeconds)}</span>
+                    {r && (
+                      <span className={`text-xs px-2 py-0.5 rounded-full ${
+                        isDark ? `bg-${r.color}-500/10 text-${r.color}-400` : `bg-${r.color}-50 text-${r.color}-600`
+                      }`}>{r.label}</span>
+                    )}
+                    <span className={`text-xs px-2 py-0.5 rounded-full ${
+                      call.status === 'completed' ? (isDark ? 'bg-emerald-500/10 text-emerald-400' : 'bg-emerald-50 text-emerald-600')
+                      : call.status === 'active' ? (isDark ? 'bg-yellow-500/10 text-yellow-400' : 'bg-yellow-50 text-yellow-600')
+                      : (isDark ? 'bg-gray-500/10 text-gray-500' : 'bg-gray-100 text-gray-400')
+                    }`}>
+                      {call.status === 'completed' ? 'مكتملة' : call.status === 'active' ? 'نشطة' : call.status}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════
 // Tab: Chat Test
 // ══════════════════════════════════════════════════════
 function ChatTab({ agent, isDark }) {
@@ -822,11 +1226,15 @@ export default function AgentSettingsPage() {
   const tabParam = searchParams.get('tab');
   const [activeTab, setActiveTab] = useState(tabParam || 'basic');
 
+  const isOutbound = agent.callDirection === 'outbound' || agent.callDirection === 'both';
+
   const TABS = [
     { key: 'basic',       label: 'أساسي',    icon: User },
     { key: 'personality', label: 'الشخصية',  icon: Bot },
     { key: 'voice',       label: 'الصوت',    icon: Volume2 },
     { key: 'advanced',    label: 'متقدم',    icon: Settings },
+    { key: 'phone',       label: 'الهاتف',   icon: Phone },
+    ...(isOutbound ? [{ key: 'outbound', label: 'الصادرة', icon: PhoneOutgoing }] : []),
     { key: 'chat',        label: 'المحادثة', icon: MessageSquare },
   ];
 
@@ -994,6 +1402,15 @@ export default function AgentSettingsPage() {
         {activeTab === 'personality' && <PersonalityTab agent={agent} setAgent={setAgent} isDark={isDark} onSuggest={handleSuggest} suggesting={suggesting} />}
         {activeTab === 'voice' && <VoiceTab agent={agent} setAgent={setAgent} isDark={isDark} />}
         {activeTab === 'advanced' && <AdvancedTab agent={agent} setAgent={setAgent} isDark={isDark} />}
+        {activeTab === 'phone' && <PhoneTab agent={agent} setAgent={setAgent} isDark={isDark} onSave={async (fields) => {
+          try {
+            const res = await updateAgent(id, fields);
+            if (res.success) setAgent(res.agent);
+          } catch (e) {
+            console.error('Phone save failed:', e);
+          }
+        }} />}
+        {activeTab === 'outbound' && <OutboundTab agent={agent} isDark={isDark} />}
         {activeTab === 'chat' && <ChatTab agent={agent} isDark={isDark} />}
       </div>
     </div>

@@ -296,39 +296,60 @@ async function listDispatchRules() {
  * @param {string} config.authPassword - SIP auth (optional)
  */
 async function setupPhoneNumber(config) {
-  // 1. Create Inbound SIP Trunk
-  const trunk = await createInboundTrunk({
-    name: `Sondos - ${config.phoneNumber} (${config.agentName})`,
-    numbers: [config.phoneNumber],
-    allowedAddresses: config.allowedAddresses || [],
-    authUsername: config.authUsername || '',
-    authPassword: config.authPassword || '',
-  });
-
-  // 2. Create Dispatch Rule → routes to room with agent metadata
-  const rule = await createDispatchRule({
-    name: `Route ${config.phoneNumber} → ${config.agentName}`,
-    trunkIds: [trunk.sipTrunkId],
-    roomPrefix: `sondos-sip-`,
-    metadata: {
-      agentConfig: config.agentConfig,
-      source: 'sip',
-      phoneNumber: config.phoneNumber,
-      userId: config.userId || '',
-    },
-  });
-
-  return {
-    sipTrunkId: trunk.sipTrunkId,
-    sipDispatchRuleId: rule.dispatchRuleId,
+  const direction = config.direction || 'inbound';
+  const result = {
+    sipTrunkId: '',
+    sipDispatchRuleId: '',
+    sipOutboundTrunkId: '',
   };
+
+  // ── 1. Inbound Trunk + Dispatch Rule (for 'inbound' or 'both') ──
+  if (direction === 'inbound' || direction === 'both') {
+    const trunk = await createInboundTrunk({
+      name: `Sondos - ${config.phoneNumber} (${config.agentName})`,
+      numbers: [config.phoneNumber],
+      allowedAddresses: config.allowedAddresses || [],
+      authUsername: config.authUsername || '',
+      authPassword: config.authPassword || '',
+    });
+    result.sipTrunkId = trunk.sipTrunkId;
+
+    const rule = await createDispatchRule({
+      name: `Route ${config.phoneNumber} → ${config.agentName}`,
+      trunkIds: [trunk.sipTrunkId],
+      roomPrefix: 'sondos-sip-',
+      metadata: {
+        agentConfig: config.agentConfig,
+        source: 'sip',
+        phoneNumber: config.phoneNumber,
+        userId: config.userId || '',
+      },
+    });
+    result.sipDispatchRuleId = rule.dispatchRuleId;
+  }
+
+  // ── 2. Outbound Trunk (for 'outbound' or 'both') ──
+  if (direction === 'outbound' || direction === 'both') {
+    if (config.sipAddress) {
+      const outTrunk = await createOutboundTrunk({
+        name: `Sondos Outbound - ${config.phoneNumber}`,
+        address: config.sipAddress,
+        numbers: [config.phoneNumber],
+        authUsername: config.authUsername || '',
+        authPassword: config.authPassword || '',
+      });
+      result.sipOutboundTrunkId = outTrunk.sipTrunkId;
+    }
+  }
+
+  return result;
 }
 
 /**
  * Full teardown: Delete SIP Trunk + Dispatch Rule
  */
-async function teardownPhoneNumber(sipTrunkId, sipDispatchRuleId) {
-  const results = { trunk: false, rule: false };
+async function teardownPhoneNumber(sipTrunkId, sipDispatchRuleId, sipOutboundTrunkId) {
+  const results = { trunk: false, rule: false, outboundTrunk: false };
 
   if (sipDispatchRuleId) {
     try {
@@ -345,6 +366,15 @@ async function teardownPhoneNumber(sipTrunkId, sipDispatchRuleId) {
       results.trunk = true;
     } catch (err) {
       console.error(`Failed to delete SIP trunk ${sipTrunkId}:`, err.message);
+    }
+  }
+
+  if (sipOutboundTrunkId) {
+    try {
+      await deleteSipTrunk(sipOutboundTrunkId);
+      results.outboundTrunk = true;
+    } catch (err) {
+      console.error(`Failed to delete outbound trunk ${sipOutboundTrunkId}:`, err.message);
     }
   }
 

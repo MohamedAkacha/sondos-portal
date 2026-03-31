@@ -203,11 +203,15 @@ exports.webhook = async (req, res) => {
         let userId = null;
         let source = 'web';
         let phoneNumber = null;
+        let direction = 'inbound';
+        let destination = null;
         try {
           const meta = room.metadata ? JSON.parse(room.metadata) : {};
           userId = meta.userId || null;
           source = meta.source || 'web';
           phoneNumber = meta.phoneNumber || null;
+          direction = meta.source === 'outbound' ? 'outbound' : roomName.startsWith('sondos-out-') ? 'outbound' : 'inbound';
+          destination = meta.destination || null;
         } catch (e) { /* metadata not JSON, ignore */ }
 
         const updateFields = {
@@ -217,6 +221,8 @@ exports.webhook = async (req, res) => {
           ...(userId && { userId }),
           ...(source && { source }),
           ...(phoneNumber && { phoneNumber }),
+          direction,
+          ...(destination && { destination }),
         };
 
         const callRecord = await LiveKitCall.findOneAndUpdate(
@@ -374,6 +380,99 @@ exports.agentTranscript = async (req, res) => {
 };
 
 
+// POST /api/livekit/agent/call-result
+exports.agentCallResult = async (req, res) => {
+  try {
+    const { roomName, callResult } = req.body;
+
+    if (!roomName || !callResult) {
+      return res.status(400).json({ success: false, message: 'roomName and callResult required' });
+    }
+
+    const validResults = ['succeeded', 'refused', 'callback_requested', 'no_answer', 'error'];
+    if (!validResults.includes(callResult)) {
+      return res.status(400).json({ success: false, message: `Invalid callResult. Must be one of: ${validResults.join(', ')}` });
+    }
+
+    // Find call record
+    const callRecord = await LiveKitCall.findOne({
+      roomName,
+      status: { $in: ['created', 'active', 'completed'] },
+    }).sort({ createdAt: -1 });
+
+    if (!callRecord) {
+      return res.status(404).json({ success: false, message: 'Call record not found' });
+    }
+
+    callRecord.callResult = callResult;
+    await callRecord.save();
+
+    // ── If this call is part of a campaign, update the contact ──
+    const campaignId = callRecord.metadata?.campaignId;
+    if (campaignId) {
+      try {
+        const Campaign = require('../models/Campaign');
+        const campaign = await Campaign.findById(campaignId);
+        if (campaign) {
+          const contact = campaign.contacts.find(c => c.roomName === roomName);
+          if (contact) {
+            contact.callResult = callResult;
+            contact.status = callResult === 'no_answer' ? 'failed' : 'completed';
+            contact.durationSeconds = callRecord.durationSeconds || 0;
+
+            if (callResult === 'no_answer' || callResult === 'error') {
+              const retryInterval = (campaign.settings.retryIntervalMinutes ?? 60) * 60_000;
+              contact.nextRetryAt = new Date(Date.now() + retryInterval);
+            }
+
+            // Update aggregate results
+            const contacts = campaign.contacts;
+            const done = contacts.filter(c => c.status === 'completed' || c.status === 'failed' || c.status === 'skipped');
+            campaign.results = {
+              totalContacts: contacts.length,
+              called: done.length,
+              answered: contacts.filter(c => c.durationSeconds > 0).length,
+              succeeded: contacts.filter(c => c.callResult === 'succeeded').length,
+              refused: contacts.filter(c => c.callResult === 'refused').length,
+              callbackRequested: contacts.filter(c => c.callResult === 'callback_requested').length,
+              noAnswer: contacts.filter(c => c.callResult === 'no_answer').length,
+              errors: contacts.filter(c => c.callResult === 'error').length,
+              totalDurationSeconds: contacts.reduce((sum, c) => sum + (c.durationSeconds || 0), 0),
+            };
+
+            // Check if campaign is complete
+            const pending = contacts.filter(c => c.status === 'pending' || c.status === 'calling');
+            const retriable = contacts.filter(c =>
+              c.status === 'failed' &&
+              c.attempts < (campaign.settings.maxRetries ?? 2) + 1
+            );
+            if (pending.length === 0 && retriable.length === 0) {
+              campaign.status = 'completed';
+              campaign.completedAt = new Date();
+            }
+
+            await campaign.save();
+            console.log(`[Agent Call Result] Campaign "${campaign.name}" updated: ${callResult} for ${contact.phone}`);
+          }
+        }
+      } catch (campErr) {
+        console.error('[Agent Call Result] Campaign update failed:', campErr.message);
+      }
+    }
+
+    console.log(`[Agent Call Result] ✅ ${callResult} → ${roomName}`);
+
+    res.json({
+      success: true,
+      message: `Call result saved: ${callResult}`,
+    });
+  } catch (error) {
+    console.error('[Agent Call Result]', error.message);
+    res.status(500).json({ success: false, message: 'Failed to save call result' });
+  }
+};
+
+
 // ╔══════════════════════════════════════════════════════════╗
 // ║  4. ROOM MANAGEMENT — Admin Only                         ║
 // ╚══════════════════════════════════════════════════════════╝
@@ -525,6 +624,7 @@ exports.listCalls = async (req, res) => {
     if (req.query.status) filter.status = req.query.status;
     if (req.query.phoneNumber) filter.phoneNumber = req.query.phoneNumber;
     if (req.query.source) filter.source = req.query.source;
+    if (req.query.direction) filter.direction = req.query.direction;
 
     const [calls, total] = await Promise.all([
       LiveKitCall.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit).populate('userId', 'name email').lean(),

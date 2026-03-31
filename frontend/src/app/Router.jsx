@@ -29,6 +29,7 @@ import AgentsPage from '@/pages/client/AgentsPage';
 import AgentSettingsPage from '@/pages/client/AgentSettingsPage';
 import CreateAgentPage from '@/pages/client/CreateAgentPage';
 import PhoneNumbersPage from '@/pages/client/PhoneNumbersPage';
+import CampaignsPage from '@/pages/client/CampaignsPage';
 
 // Admin pages
 import AdminDashboardPage from '@/pages/admin/AdminDashboardPage';
@@ -93,6 +94,7 @@ export default function Router() {
           <Route path="agents/new"        element={<CreateAgentPage />} />
           <Route path="agents/:id"        element={<AgentSettingsPage />} />
           <Route path="phones"             element={<PhoneNumbersPage />} />
+          <Route path="campaigns"          element={<CampaignsPage />} />
 
           {/* Redirects: old routes → settings tabs */}
           <Route path="balance"      element={<Navigate to="/settings?tab=balance" replace />} />

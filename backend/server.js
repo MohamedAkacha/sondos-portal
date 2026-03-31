@@ -42,6 +42,10 @@ const start = async () => {
       };
 
       scheduleSipCleanup();
+
+      // ── Campaign Runner — polls active campaigns ──
+      const campaignRunner = require('./src/utils/campaignRunner');
+      campaignRunner.start();
     });
   } catch (error) {
     console.error('Failed to start server:', error);

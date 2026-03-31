@@ -56,6 +56,25 @@ const agentSchema = new mongoose.Schema({
     index: true,
   },
 
+  // ── Call Direction ──
+  callDirection: {
+    type: String,
+    enum: ['inbound', 'outbound', 'both'],
+    default: 'inbound',
+  },
+
+  // ── Outbound Call Settings (used when callDirection is 'outbound' or 'both') ──
+  outboundSettings: {
+    objective: { type: String, default: '', trim: true },
+    openingMessage: { type: String, default: '', trim: true },
+    maxRetries: { type: Number, default: 2, min: 0, max: 10 },
+    retryIntervalMinutes: { type: Number, default: 60, min: 5, max: 1440 },
+    callResultOptions: {
+      type: [String],
+      default: ['succeeded', 'refused', 'callback_requested', 'no_answer'],
+    },
+  },
+
   // ── Personality (Simple fields → auto-build system prompt) ──
   personality: {
     role: {
@@ -297,6 +316,16 @@ agentSchema.methods.toLiveKitConfig = function () {
     ttsVoice: this.voice.voiceId,
     systemPrompt: this.useCustomPrompt ? this.systemPrompt : this.buildSystemPrompt(),
     greeting: this.greeting,
+    // Call direction — Python Worker uses this to adjust behavior
+    callDirection: this.callDirection || 'inbound',
+    // Outbound settings — Python Worker uses these for outbound calls
+    outboundSettings: (this.callDirection === 'outbound' || this.callDirection === 'both') ? {
+      objective: this.outboundSettings?.objective || '',
+      openingMessage: this.outboundSettings?.openingMessage || this.greeting,
+      maxRetries: this.outboundSettings?.maxRetries ?? 2,
+      retryIntervalMinutes: this.outboundSettings?.retryIntervalMinutes ?? 60,
+      callResultOptions: this.outboundSettings?.callResultOptions || ['succeeded', 'refused', 'callback_requested', 'no_answer'],
+    } : null,
     // Working hours — Python Worker reads these to decide behavior
     workingHours: {
       enabled: !!wh?.enabled,
@@ -316,6 +345,8 @@ agentSchema.methods.toPublicJSON = function () {
     description: this.description,
     avatar: this.avatar,
     status: this.status,
+    callDirection: this.callDirection,
+    outboundSettings: this.outboundSettings,
     personality: this.personality,
     language: this.language,
     greeting: this.greeting,

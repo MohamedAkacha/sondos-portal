@@ -17,6 +17,7 @@ const paymentRoutes = require('./routes/payment.routes');
 const livekitRoutes = require('./routes/livekit.routes');
 const publicRoutes = require('./routes/public.routes');
 const agentRoutes = require('./routes/agent.routes');
+const campaignRoutes = require('./routes/campaign.routes');
 const phoneRoutes = require('./routes/phone.routes');
 
 const app = express();
@@ -124,6 +125,7 @@ app.use('/api/agents', agentRoutes);
 
 // Phone routes (SIP + Twilio + Telnyx)
 app.use('/api/phones', phoneRoutes);
+app.use('/api/campaigns', campaignRoutes);
 
 // Public routes (external systems — API Key auth, no user token)
 app.use('/api/public', publicRoutes);

@@ -119,6 +119,27 @@ const livekitCallSchema = new mongoose.Schema({
     default: null,
   },
 
+  // ── Call Direction ──
+  direction: {
+    type: String,
+    enum: ['inbound', 'outbound'],
+    default: 'inbound',
+    index: true,
+  },
+
+  // ── Outbound Destination (the number dialed) ──
+  destination: {
+    type: String,
+    default: null,
+  },
+
+  // ── Call Result (set by agent/webhook after call ends) ──
+  callResult: {
+    type: String,
+    enum: ['succeeded', 'refused', 'callback_requested', 'no_answer', 'error', null],
+    default: null,
+  },
+
   // ── Metadata ──
   metadata: {
     type: mongoose.Schema.Types.Mixed,
@@ -133,6 +154,7 @@ const livekitCallSchema = new mongoose.Schema({
 livekitCallSchema.index({ userId: 1, createdAt: -1 });
 livekitCallSchema.index({ status: 1, createdAt: -1 });
 livekitCallSchema.index({ agentId: 1, createdAt: -1 });
+livekitCallSchema.index({ direction: 1, createdAt: -1 });
 
 // ── Virtual: formatted duration ──
 livekitCallSchema.virtual('formattedDuration').get(function () {
