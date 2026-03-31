@@ -312,6 +312,7 @@ async function setupPhoneNumber(config) {
       agentConfig: config.agentConfig,
       source: 'sip',
       phoneNumber: config.phoneNumber,
+      userId: config.userId || '',
     },
   });
 
@@ -359,4 +360,52 @@ module.exports = {
   listDispatchRules,
   setupPhoneNumber,
   teardownPhoneNumber,
+  createSipParticipant,
 };
+
+// ══════════════════════════════════════════════════════
+// Outbound Call — dial out via SIP
+// ══════════════════════════════════════════════════════
+
+/**
+ * Create a SIP participant (initiate outbound call)
+ * LiveKit dials the destination number and connects to the room
+ * @param {object} config
+ * @param {string} config.sipTrunkId - Outbound SIP trunk ID
+ * @param {string} config.sipCallTo - Destination SIP URI (e.g. sip:+966501234567@trunk)
+ * @param {string} config.roomName - Room to connect the call to
+ * @param {string} config.participantIdentity - Identity for the SIP participant
+ * @param {string} config.participantName - Display name
+ * @param {object} config.metadata - Room metadata (JSON stringified)
+ */
+async function createSipParticipant(config) {
+  if (!isConfigured()) throw new Error('LiveKit SIP غير مُعد');
+
+  const body = {
+    sip_trunk_id: config.sipTrunkId,
+    sip_call_to: config.sipCallTo,
+    room_name: config.roomName,
+    participant_identity: config.participantIdentity || 'sip-caller',
+    participant_name: config.participantName || 'متصل',
+    // dtmf: config.dtmf || '',
+    // play_ringtone: config.playRingtone !== false,
+  };
+
+  const res = await fetch(`${LIVEKIT_HTTP_URL}/twirp/livekit.SIP/CreateSIPParticipant`, {
+    method: 'POST',
+    headers: await authHeader(),
+    body: JSON.stringify(body),
+  });
+
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`LiveKit SIP Participant error (${res.status}): ${err}`);
+  }
+
+  const data = await res.json();
+  return {
+    participantId: data.participant_id || data.sip_participant_id,
+    participantIdentity: data.participant_identity,
+    sipCallId: data.sip_call_id,
+  };
+}

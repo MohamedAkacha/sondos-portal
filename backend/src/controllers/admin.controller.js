@@ -328,3 +328,25 @@ exports.deleteUser = async (req, res) => {
     res.status(500).json({ success: false, message: 'حدث خطأ في الخادم' });
   }
 };
+// ══════════════════════════════════════════════════════
+// POST /api/admin/sip-cleanup — Manual SIP resource cleanup
+// ══════════════════════════════════════════════════════
+exports.sipCleanup = async (req, res) => {
+  try {
+    const { runCleanup } = require('../utils/sipCleanup');
+    const result = await runCleanup();
+
+    if (result.skipped) {
+      return res.json({ success: true, message: 'LiveKit SIP غير مُعد — لا حاجة للتنظيف', result });
+    }
+
+    res.json({
+      success: true,
+      message: `تم التنظيف — حُذفت ${result.orphanedTrunks} trunk و ${result.orphanedRules} rule، وأُصلحت ${result.staleDbRecords} سجلات`,
+      result,
+    });
+  } catch (error) {
+    console.error('[Admin SIP Cleanup]', error.message);
+    res.status(500).json({ success: false, message: 'فشل التنظيف' });
+  }
+};

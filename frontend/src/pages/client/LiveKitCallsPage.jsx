@@ -5,11 +5,12 @@
 // Separate from AutoCalls — parallel test system
 // =====================================================
 import { useState, useEffect, useCallback } from "react";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import {
   Phone, PhoneOff, Check, Search, RefreshCw, Eye,
   FileText, Clock, ChevronLeft, ChevronRight,
   Loader2, AlertCircle, TrendingUp, Mic,
-  X, Bot, User, Info
+  X, Bot, User, Info, Filter, PhoneIncoming
 } from "lucide-react";
 import { useTheme } from "@/hooks/useTheme";
 import { useLanguage } from "@/hooks/useLanguage";
@@ -81,7 +82,7 @@ function KPICard({ icon: Icon, label, value, sub, color, isDark }) {
   }[color] || { bg: "bg-gray-500/10", text: "text-gray-500", border: "border-gray-500/20" };
 
   return (
-    <div className={`rounded-2xl p-5 border transition-all hover:shadow-md ${isDark ? "bg-[#111113]/80 border-[#1f1f23] hover:border-[#2a2a2e]" : "bg-white border-gray-200 hover:shadow-lg"}`}>
+    <div className={`rounded-2xl p-5 border ${isDark ? "bg-[#111113] border-[#1f1f23]" : "bg-white border-gray-200"}`}>
       <div className={`w-10 h-10 ${cfg.bg} ${cfg.border} border rounded-xl flex items-center justify-center mb-3`}>
         <Icon className={`w-5 h-5 ${cfg.text}`} />
       </div>
@@ -306,6 +307,9 @@ function Pagination({ currentPage, lastPage, onPageChange, isDark }) {
 export default function LiveKitCallsPage() {
   const { isDark } = useTheme();
   const { t } = useLanguage();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const phoneFilter = searchParams.get('phoneNumber') || '';
 
   const [calls, setCalls] = useState([]);
   const [stats, setStats] = useState({ totalCalls: 0, completedCalls: 0, activeCalls: 0, avgDurationSeconds: 0 });
@@ -328,6 +332,7 @@ export default function LiveKitCallsPage() {
     try {
       const params = { page, limit: PER_PAGE };
       if (filterStatus !== "all") params.status = filterStatus;
+      if (phoneFilter) params.phoneNumber = phoneFilter;
 
       const [callsRes, statsRes] = await Promise.all([
         listLivekitCalls(params),
@@ -344,11 +349,11 @@ export default function LiveKitCallsPage() {
     } finally {
       setLoading(false);
     }
-  }, [filterStatus]);
+  }, [filterStatus, phoneFilter]);
 
   useEffect(() => {
     loadCalls(1);
-  }, [filterStatus]);
+  }, [filterStatus, phoneFilter]);
 
   const handlePageChange = (page) => {
     loadCalls(page);
@@ -371,6 +376,33 @@ export default function LiveKitCallsPage() {
           هذه سجلات مكالمات الاختبار عبر LiveKit (من صفحة اختبار المساعد). مكالمات AutoCalls الإنتاجية في التاب الآخر.
         </p>
       </div>
+
+      {/* ── Phone Filter Banner ── */}
+      {phoneFilter && (
+        <div className={`flex items-center justify-between p-4 rounded-xl border ${
+          isDark ? "bg-teal-500/5 border-teal-500/20" : "bg-teal-50 border-teal-200"
+        }`}>
+          <div className="flex items-center gap-3">
+            <Filter className={`w-5 h-5 ${isDark ? "text-teal-400" : "text-teal-600"}`} />
+            <div>
+              <p className={`text-sm font-medium ${isDark ? "text-teal-300" : "text-teal-700"}`}>
+                مكالمات الرقم <span className="font-mono" dir="ltr">{phoneFilter}</span>
+              </p>
+              <p className={`text-xs ${isDark ? "text-teal-400/60" : "text-teal-600/60"}`}>
+                يتم عرض المكالمات المرتبطة بهذا الرقم فقط
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => { setSearchParams({}); }}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+              isDark ? "bg-[#1a1a1d] text-gray-400 hover:text-white" : "bg-white text-gray-500 hover:text-gray-900"
+            }`}
+          >
+            <X className="w-3 h-3" /> إزالة الفلتر
+          </button>
+        </div>
+      )}
 
       {/* ── KPI Cards ── */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -427,7 +459,7 @@ export default function LiveKitCallsPage() {
       )}
 
       {/* ── Table ── */}
-      <div className={`rounded-2xl border overflow-hidden ${isDark ? "bg-[#111113]/80 border-[#1f1f23]" : "bg-white border-gray-200 shadow-sm"}`}>
+      <div className={`rounded-2xl border overflow-hidden ${isDark ? "bg-[#111113] border-[#1f1f23]" : "bg-white border-gray-200"}`}>
         {loading ? (
           <div className="flex items-center justify-center py-24">
             <Loader2 className="w-8 h-8 animate-spin text-teal-500" />
@@ -463,7 +495,7 @@ export default function LiveKitCallsPage() {
                     <tr
                       key={call._id || i}
                       className={`transition-colors ${
-                        isDark ? "border-[#1f1f23]/40 hover:bg-[#1a1a1d]/60" : "border-gray-100 hover:bg-gray-50"
+                        isDark ? "border-[#1f1f23]/40 hover:bg-[#1a1a1d]" : "border-gray-100 hover:bg-gray-50"
                       }`}
                       style={{ borderBottomWidth: "1px", borderBottomStyle: "solid" }}
                     >

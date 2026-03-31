@@ -34,6 +34,8 @@ export async function listLivekitCalls(params = {}) {
   if (params.page) query.set('page', params.page);
   if (params.limit) query.set('limit', params.limit);
   if (params.status) query.set('status', params.status);
+  if (params.phoneNumber) query.set('phoneNumber', params.phoneNumber);
+  if (params.source) query.set('source', params.source);
   const qs = query.toString();
   return apiCall(`/livekit/calls${qs ? `?${qs}` : ''}`);
 }

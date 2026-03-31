@@ -30,4 +30,13 @@ router.delete('/:id', phoneCtrl.deletePhone);
 // Retry SIP setup
 router.post('/:id/setup-sip', phoneCtrl.setupSip);
 
+// Outbound call
+router.post('/:id/outbound', phoneCtrl.initiateOutbound);
+
+// Toggle enable/disable
+router.post('/:id/toggle', phoneCtrl.toggleStatus);
+
+// Health check
+router.get('/:id/health', phoneCtrl.healthCheck);
+
 module.exports = router;

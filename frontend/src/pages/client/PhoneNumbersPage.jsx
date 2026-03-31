@@ -10,27 +10,13 @@ import {
   Phone, Plus, Search, Loader2, AlertCircle, RefreshCw,
   MoreVertical, Trash2, Edit, Link2, Unlink, Settings,
   Globe, Bot, CheckCircle, XCircle, Clock, Wifi,
-  PhoneIncoming, ShoppingCart, Server,
+  PhoneIncoming, PhoneOutgoing, ShoppingCart, Server, AlertTriangle, Activity, Power, PowerOff, Eye,
 } from "lucide-react";
 import { useTheme } from "@/hooks/useTheme";
 import { useLanguage } from "@/hooks/useLanguage";
 import { listAgents } from "@/services/api/agentAPI";
-
-// ── API functions (inline — will move to phoneAPI.js later) ──
-import { apiCall } from "@/services/api/httpClient";
-
-const phoneAPI = {
-  list: () => apiCall('/phones'),
-  get: (id) => apiCall(`/phones/${id}`),
-  getProviders: () => apiCall('/phones/providers'),
-  searchAvailable: (provider, country, contains) =>
-    apiCall(`/phones/available?provider=${provider}&country=${country}${contains ? `&contains=${contains}` : ''}&limit=10`),
-  purchase: (data) => apiCall('/phones/purchase', { method: 'POST', body: JSON.stringify(data) }),
-  addCustom: (data) => apiCall('/phones/custom', { method: 'POST', body: JSON.stringify(data) }),
-  update: (id, data) => apiCall(`/phones/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
-  delete: (id) => apiCall(`/phones/${id}`, { method: 'DELETE' }),
-  setupSip: (id) => apiCall(`/phones/${id}/setup-sip`, { method: 'POST' }),
-};
+import { phoneAPI } from "@/services/api/phoneAPI";
+import { useToast } from "@/components/ui/Toast";
 
 // ── Country options ──
 const COUNTRIES = [
@@ -54,15 +40,11 @@ const STATUS_CONFIG = {
   inactive: { label: 'معطّل',   color: 'gray',    icon: XCircle },
   pending:  { label: 'قيد الإعداد', color: 'amber', icon: Clock },
   error:    { label: 'خطأ',     color: 'red',     icon: AlertCircle },
-};
-
 // ── Provider labels ──
 const PROVIDER_LABELS = {
   twilio: { name: 'Twilio', icon: '📞', color: 'red' },
   telnyx: { name: 'Telnyx', icon: '🌐', color: 'blue' },
   custom: { name: 'SIP مخصص', icon: '🔧', color: 'purple' },
-};
-
 // ══════════════════════════════════════════════════════
 // Status Badge
 // ══════════════════════════════════════════════════════
@@ -84,12 +66,39 @@ function StatusBadge({ status, isDark }) {
 }
 
 // ══════════════════════════════════════════════════════
+// Inactive Agent Warning
+// ══════════════════════════════════════════════════════
+function InactiveAgentWarning({ agentId, agents, isDark }) {
+  if (!agentId) return null;
+  const agent = agents.find(a => a.id === agentId);
+  if (!agent || agent.status === 'active') return null;
+  return (
+    <div className={`flex items-start gap-2 mt-2 p-2.5 rounded-lg text-xs ${
+      isDark ? 'bg-amber-500/10 border border-amber-500/20' : 'bg-amber-50 border border-amber-200'
+    }`}>
+      <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
+      <div>
+        <p className={isDark ? 'text-amber-300' : 'text-amber-700'}>
+          هذا المساعد <strong>{agent.status === 'inactive' ? 'معطّل' : 'مسودة'}</strong> — المكالمات الواردة لن تُرد عليها.
+        </p>
+        <p className={`mt-0.5 ${isDark ? 'text-amber-400/70' : 'text-amber-600'}`}>
+          فعّل المساعد أولاً من صفحة المساعدين.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════
 // Phone Card
 // ══════════════════════════════════════════════════════
-function PhoneCard({ phone, isDark, agents, onUpdate, onDelete, onSetupSip }) {
+function PhoneCard({ phone, isDark, agents, onUpdate, onDelete, onSetupSip, onToggle, onOutbound }) {
+  const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
   const [changingAgent, setChangingAgent] = useState(false);
   const [selectedAgent, setSelectedAgent] = useState(phone.agent?.id || '');
+  const [health, setHealth] = useState(null); // null = not checked, object = result
+  const [checking, setChecking] = useState(false);
   const providerCfg = PROVIDER_LABELS[phone.provider] || PROVIDER_LABELS.custom;
   const country = COUNTRIES.find(c => c.code === phone.country);
 
@@ -99,6 +108,18 @@ function PhoneCard({ phone, isDark, agents, onUpdate, onDelete, onSetupSip }) {
       await onUpdate(phone.id, { agentId: selectedAgent || null });
     } finally {
       setChangingAgent(false);
+    }
+  };
+
+  const handleHealthCheck = async () => {
+    setChecking(true);
+    try {
+      const res = await phoneAPI.healthCheck(phone.id);
+      setHealth(res.health);
+    } catch (err) {
+      setHealth({ overall: 'error' });
+    } finally {
+      setChecking(false);
     }
   };
 
@@ -143,6 +164,31 @@ function PhoneCard({ phone, isDark, agents, onUpdate, onDelete, onSetupSip }) {
                       <Wifi className="w-4 h-4" /> إعادة إعداد SIP
                     </button>
                   )}
+                  {phone.sipTrunkId && (
+                    <button onClick={() => { handleHealthCheck(); setMenuOpen(false); }}
+                      className={`w-full flex items-center gap-2.5 px-4 py-2.5 text-sm ${isDark ? 'text-gray-300 hover:bg-[#1f1f23]' : 'text-gray-700 hover:bg-gray-50'}`}>
+                      <Activity className="w-4 h-4" /> فحص الاتصال
+                    </button>
+                  )}
+                  {(phone.status === 'active' || phone.status === 'inactive') && phone.sipTrunkId && (
+                    <button onClick={() => { onToggle(phone); setMenuOpen(false); }}
+                      className={`w-full flex items-center gap-2.5 px-4 py-2.5 text-sm ${
+                        phone.status === 'active'
+                          ? 'text-amber-400 hover:bg-amber-500/10'
+                          : isDark ? 'text-emerald-400 hover:bg-emerald-500/10' : 'text-emerald-600 hover:bg-emerald-50'
+                      }`}>
+                      {phone.status === 'active'
+                        ? <><PowerOff className="w-4 h-4" /> تعطيل الرقم مؤقتاً</>
+                        : <><Power className="w-4 h-4" /> تفعيل الرقم</>
+                      }
+                    </button>
+                  )}
+                  {phone.status === 'active' && phone.agentId && (
+                    <button onClick={() => { onOutbound(phone); setMenuOpen(false); }}
+                      className={`w-full flex items-center gap-2.5 px-4 py-2.5 text-sm ${isDark ? 'text-teal-400 hover:bg-teal-500/10' : 'text-teal-600 hover:bg-teal-50'}`}>
+                      <PhoneOutgoing className="w-4 h-4" /> مكالمة صادرة
+                    </button>
+                  )}
                   <div className={`my-1.5 border-t ${isDark ? 'border-[#2a2a2e]' : 'border-gray-100'}`} />
                   <button onClick={() => { onDelete(phone); setMenuOpen(false); }}
                     className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-red-400 hover:bg-red-500/10">
@@ -178,7 +224,7 @@ function PhoneCard({ phone, isDark, agents, onUpdate, onDelete, onSetupSip }) {
           >
             <option value="">— بدون مساعد —</option>
             {agents.map(a => (
-              <option key={a.id} value={a.id}>{a.avatar} {a.name}</option>
+              <option key={a.id} value={a.id}>{a.avatar} {a.name}{a.status !== 'active' ? ` (${a.status === 'inactive' ? 'معطّل' : 'مسودة'})` : ''}</option>
             ))}
           </select>
           {selectedAgent !== (phone.agent?.id || '') && (
@@ -191,6 +237,7 @@ function PhoneCard({ phone, isDark, agents, onUpdate, onDelete, onSetupSip }) {
             </button>
           )}
         </div>
+        <InactiveAgentWarning agentId={selectedAgent} agents={agents} isDark={isDark} />
         {phone.agent && (
           <div className="flex items-center gap-2 mt-2">
             <span className="text-sm">{phone.agent.avatar}</span>
@@ -206,18 +253,54 @@ function PhoneCard({ phone, isDark, agents, onUpdate, onDelete, onSetupSip }) {
         )}
       </div>
 
-      {/* Stats */}
+      {/* Stats + View Calls */}
       <div className={`flex items-center gap-4 text-xs ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>
         <div className="flex items-center gap-1.5">
           <PhoneIncoming className="w-3.5 h-3.5" />
           <span>{phone.stats?.totalCalls || 0} مكالمة</span>
         </div>
+        {phone.stats?.totalCalls > 0 && (
+          <button
+            onClick={() => navigate(`/calls?phoneNumber=${encodeURIComponent(phone.phoneNumber)}`)}
+            className={`flex items-center gap-1 hover:underline ${isDark ? 'text-teal-500 hover:text-teal-400' : 'text-teal-600 hover:text-teal-500'}`}
+          >
+            <Eye className="w-3 h-3" /> عرض المكالمات
+          </button>
+        )}
         {phone.statusMessage && (
           <span className="text-amber-400 truncate max-w-[200px]" title={phone.statusMessage}>
             ⚠️ {phone.statusMessage}
           </span>
         )}
       </div>
+
+      {/* Health Check Result */}
+      {(checking || health) && (
+        <div className={`mt-3 flex items-center gap-2 px-3 py-2 rounded-lg text-xs ${
+          checking ? (isDark ? 'bg-[#1a1a1d] text-gray-400' : 'bg-gray-50 text-gray-500')
+          : health?.overall === 'healthy' ? (isDark ? 'bg-emerald-500/10 text-emerald-400' : 'bg-emerald-50 text-emerald-600')
+          : health?.overall === 'no_agent' ? (isDark ? 'bg-amber-500/10 text-amber-400' : 'bg-amber-50 text-amber-600')
+          : (isDark ? 'bg-red-500/10 text-red-400' : 'bg-red-50 text-red-600')
+        }`}>
+          {checking ? (
+            <><Loader2 className="w-3 h-3 animate-spin" /> جاري الفحص...</>
+          ) : health?.overall === 'healthy' ? (
+            <><CheckCircle className="w-3.5 h-3.5" /> SIP Trunk + Dispatch Rule يعملان بشكل سليم</>
+          ) : health?.overall === 'no_agent' ? (
+            <><AlertTriangle className="w-3.5 h-3.5" /> SIP يعمل لكن لا يوجد مساعد مربوط</>
+          ) : health?.overall === 'rule_missing' ? (
+            <><XCircle className="w-3.5 h-3.5" /> Dispatch Rule مفقود — أعد إعداد SIP</>
+          ) : health?.overall === 'trunk_missing' ? (
+            <><XCircle className="w-3.5 h-3.5" /> SIP Trunk مفقود — أعد إعداد SIP</>
+          ) : health?.overall === 'not_configured' ? (
+            <><XCircle className="w-3.5 h-3.5" /> SIP غير مُعد — اربط مساعد أولاً</>
+          ) : health?.overall === 'livekit_unavailable' ? (
+            <><XCircle className="w-3.5 h-3.5" /> LiveKit غير متاح</>
+          ) : (
+            <><XCircle className="w-3.5 h-3.5" /> فشل الفحص</>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -321,8 +404,8 @@ function AddNumberModal({ isDark, agents, providers, onClose, onSuccess }) {
         {/* Mode Selection */}
         {!mode && (
           <div className="space-y-3">
-            {/* Buy from provider */}
-            {(providers?.twilio?.available || providers?.telnyx?.available) && (
+            {/* Buy from provider — or show why it's unavailable */}
+            {(providers?.twilio?.available || providers?.telnyx?.available) ? (
               <button
                 onClick={() => setMode('buy')}
                 className={`w-full p-4 rounded-xl border text-right transition-all ${
@@ -336,11 +419,45 @@ function AddNumberModal({ isDark, agents, providers, onClose, onSuccess }) {
                   <div>
                     <p className={`font-bold text-sm ${isDark ? 'text-white' : 'text-gray-900'}`}>شراء رقم جديد</p>
                     <p className={`text-xs mt-0.5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                      اشترِ رقم من Twilio أو Telnyx وربطه بمساعدك
+                      اشترِ رقم من {providers?.twilio?.available && providers?.telnyx?.available ? 'Twilio أو Telnyx' : providers?.twilio?.available ? 'Twilio' : 'Telnyx'} وربطه بمساعدك
                     </p>
                   </div>
                 </div>
               </button>
+            ) : (
+              <div className={`p-4 rounded-xl border ${isDark ? 'bg-[#0a0a0b] border-[#1f1f23]' : 'bg-gray-50 border-gray-200'}`}>
+                <div className="flex items-center gap-3">
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-xl opacity-40 ${isDark ? 'bg-[#1a1a1d]' : 'bg-gray-100'}`}>
+                    🛒
+                  </div>
+                  <div className="flex-1">
+                    <p className={`font-bold text-sm ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>شراء رقم جديد</p>
+                    {!providers ? (
+                      <p className={`text-xs mt-1 ${isDark ? 'text-amber-400/80' : 'text-amber-600'}`}>
+                        ⚠️ فشل تحميل المزوّدين — تحقق من اتصالك وأعد المحاولة
+                      </p>
+                    ) : (
+                      <div className={`text-xs mt-1.5 space-y-1`}>
+                        {!providers?.twilio?.available && (
+                          <p className="flex items-center gap-1.5">
+                            <XCircle className={`w-3 h-3 ${isDark ? 'text-red-500/60' : 'text-red-400'}`} />
+                            <span className={isDark ? 'text-gray-500' : 'text-gray-400'}>Twilio: {providers?.twilio?.reason || 'مفاتيح API غير مُعدّة'}</span>
+                          </p>
+                        )}
+                        {!providers?.telnyx?.available && (
+                          <p className="flex items-center gap-1.5">
+                            <XCircle className={`w-3 h-3 ${isDark ? 'text-red-500/60' : 'text-red-400'}`} />
+                            <span className={isDark ? 'text-gray-500' : 'text-gray-400'}>Telnyx: {providers?.telnyx?.reason || 'مفاتيح API غير مُعدّة'}</span>
+                          </p>
+                        )}
+                        <p className={`mt-1.5 ${isDark ? 'text-teal-400/60' : 'text-teal-600'}`}>
+                          أضف مفاتيح API في الإعدادات، أو استخدم "ربط رقم موجود" أدناه
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
             )}
 
             {/* Custom SIP */}
@@ -469,9 +586,10 @@ function AddNumberModal({ isDark, agents, providers, onClose, onSuccess }) {
               >
                 <option value="">— بدون مساعد (ربط لاحقاً) —</option>
                 {agents.map(a => (
-                  <option key={a.id} value={a.id}>{a.avatar} {a.name}</option>
+                  <option key={a.id} value={a.id}>{a.avatar} {a.name}{a.status !== 'active' ? ` (${a.status === 'inactive' ? 'معطّل' : 'مسودة'})` : ''}</option>
                 ))}
               </select>
+              <InactiveAgentWarning agentId={selectedAgent} agents={agents} isDark={isDark} />
             </div>
 
             {/* Purchase button */}
@@ -591,9 +709,10 @@ function AddNumberModal({ isDark, agents, providers, onClose, onSuccess }) {
               >
                 <option value="">— بدون مساعد —</option>
                 {agents.map(a => (
-                  <option key={a.id} value={a.id}>{a.avatar} {a.name}</option>
+                  <option key={a.id} value={a.id}>{a.avatar} {a.name}{a.status !== 'active' ? ` (${a.status === 'inactive' ? 'معطّل' : 'مسودة'})` : ''}</option>
                 ))}
               </select>
+              <InactiveAgentWarning agentId={selectedAgent} agents={agents} isDark={isDark} />
             </div>
 
             {/* Add button */}
@@ -613,6 +732,114 @@ function AddNumberModal({ isDark, agents, providers, onClose, onSuccess }) {
           <div className={`mt-4 flex items-center gap-2 p-3 rounded-xl ${isDark ? 'bg-red-500/10 border border-red-500/20' : 'bg-red-50 border border-red-200'}`}>
             <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0" />
             <span className={`text-xs ${isDark ? 'text-red-400' : 'text-red-600'}`}>{error}</span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════
+// Outbound Call Modal
+// ══════════════════════════════════════════════════════
+function OutboundCallModal({ phone, isDark, onClose, onCall }) {
+  const [destination, setDestination] = useState('');
+  const [calling, setCalling] = useState(false);
+  const [error, setError] = useState(null);
+  const [result, setResult] = useState(null);
+
+  const handleCall = async () => {
+    if (!destination.startsWith('+')) {
+      setError('أدخل الرقم بصيغة دولية (مثال: +966501234567)');
+      return;
+    }
+    setCalling(true);
+    setError(null);
+    try {
+      const res = await onCall(phone.id, destination);
+      setResult(res);
+    } catch (err) {
+      setError(err.message || 'فشل إجراء المكالمة');
+    } finally {
+      setCalling(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+      <div className={`w-full max-w-md rounded-2xl p-6 ${isDark ? 'bg-[#111113] border border-[#1f1f23]' : 'bg-white border border-gray-200'}`} dir="rtl">
+        <div className="flex items-center justify-between mb-5">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-teal-500/10">
+              <PhoneOutgoing className="w-5 h-5 text-teal-400" />
+            </div>
+            <div>
+              <h2 className={`text-base font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>مكالمة صادرة</h2>
+              <p className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>من {phone.phoneNumber}</p>
+            </div>
+          </div>
+          <button onClick={onClose} className={`text-sm ${isDark ? 'text-gray-500 hover:text-gray-300' : 'text-gray-400 hover:text-gray-600'}`}>✕</button>
+        </div>
+
+        {!result ? (
+          <div className="space-y-4">
+            <div>
+              <label className={`block text-sm font-medium mb-1.5 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                رقم المتصَل عليه
+              </label>
+              <input
+                type="tel"
+                value={destination}
+                onChange={(e) => setDestination(e.target.value)}
+                placeholder="+966501234567"
+                dir="ltr"
+                className={`w-full px-4 py-3 rounded-xl border text-base font-mono text-center tracking-wider ${
+                  isDark ? 'bg-[#0a0a0b] border-[#1f1f23] text-white placeholder:text-gray-600' : 'bg-gray-50 border-gray-200 text-gray-900 placeholder:text-gray-400'
+                } focus:outline-none focus:ring-2 focus:ring-teal-500/30`}
+                autoFocus
+              />
+            </div>
+
+            <div className={`flex items-start gap-2 p-3 rounded-xl text-xs ${isDark ? 'bg-[#0a0a0b] border border-[#1f1f23]' : 'bg-gray-50 border border-gray-200'}`}>
+              <Bot className={`w-4 h-4 shrink-0 mt-0.5 ${isDark ? 'text-teal-400' : 'text-teal-500'}`} />
+              <p className={isDark ? 'text-gray-400' : 'text-gray-500'}>
+                المساعد <strong className={isDark ? 'text-white' : 'text-gray-900'}>{phone.agent?.name || 'المربوط'}</strong> سيتحدث مع الشخص اللي يرد على المكالمة.
+              </p>
+            </div>
+
+            {error && (
+              <div className={`flex items-center gap-2 p-3 rounded-xl text-xs ${isDark ? 'bg-red-500/10 border border-red-500/20 text-red-400' : 'bg-red-50 border border-red-200 text-red-600'}`}>
+                <AlertCircle className="w-3.5 h-3.5 shrink-0" /> {error}
+              </div>
+            )}
+
+            <button
+              onClick={handleCall}
+              disabled={!destination || calling}
+              className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-gradient-to-l from-teal-500 to-cyan-500 hover:from-teal-400 hover:to-cyan-400 text-white font-bold text-sm disabled:opacity-50 transition-all"
+            >
+              {calling ? <Loader2 className="w-4 h-4 animate-spin" /> : <PhoneOutgoing className="w-4 h-4" />}
+              {calling ? 'جاري الاتصال...' : 'اتصل الآن'}
+            </button>
+          </div>
+        ) : (
+          <div className="text-center space-y-4">
+            <div className="w-14 h-14 rounded-full mx-auto flex items-center justify-center bg-emerald-500/10">
+              <PhoneOutgoing className="w-7 h-7 text-emerald-400" />
+            </div>
+            <div>
+              <p className={`font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>جاري الاتصال</p>
+              <p className={`text-sm mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                {phone.phoneNumber} → {destination}
+              </p>
+              <p className={`text-xs mt-2 font-mono ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>
+                Room: {result.roomName}
+              </p>
+            </div>
+            <button onClick={onClose}
+              className={`w-full py-2.5 rounded-xl font-medium text-sm ${isDark ? 'bg-[#1a1a1d] text-white hover:bg-[#222225]' : 'bg-gray-100 text-gray-900 hover:bg-gray-200'}`}>
+              إغلاق
+            </button>
           </div>
         )}
       </div>
@@ -670,6 +897,7 @@ function DeleteModal({ phone, isDark, onConfirm, onCancel, deleting }) {
 export default function PhoneNumbersPage() {
   const { isDark } = useTheme();
   const { t } = useLanguage();
+  const { toast } = useToast();
   const navigate = useNavigate();
 
   const [phones, setPhones] = useState([]);
@@ -680,6 +908,7 @@ export default function PhoneNumbersPage() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleting, setDeleting] = useState(false);
+  const [outboundTarget, setOutboundTarget] = useState(null);
 
   // ── Load data ──
   const loadData = useCallback(async () => {
@@ -709,8 +938,9 @@ export default function PhoneNumbersPage() {
     try {
       await phoneAPI.update(phoneId, data);
       await loadData();
+      toast.success(data.agentId ? 'تم ربط المساعد بالرقم' : data.agentId === null ? 'تم فصل المساعد عن الرقم' : 'تم تحديث الرقم');
     } catch (err) {
-      setError(err.message || 'فشل التحديث');
+      toast.error(err.message || 'فشل التحديث');
     }
   };
 
@@ -720,9 +950,10 @@ export default function PhoneNumbersPage() {
     try {
       await phoneAPI.delete(deleteTarget.id);
       setPhones(prev => prev.filter(p => p.id !== deleteTarget.id));
+      toast.success(`تم حذف الرقم ${deleteTarget.phoneNumber}`);
       setDeleteTarget(null);
     } catch (err) {
-      setError(err.message || 'فشل حذف الرقم');
+      toast.error(err.message || 'فشل حذف الرقم');
     } finally {
       setDeleting(false);
     }
@@ -732,9 +963,26 @@ export default function PhoneNumbersPage() {
     try {
       await phoneAPI.setupSip(phone.id);
       await loadData();
+      toast.success('تم إعداد SIP بنجاح');
     } catch (err) {
-      setError(err.message || 'فشل إعداد SIP');
+      toast.error(err.message || 'فشل إعداد SIP');
     }
+  };
+
+  const handleToggle = async (phone) => {
+    try {
+      const res = await phoneAPI.toggle(phone.id);
+      await loadData();
+      toast.success(res.message || (res.status === 'active' ? 'تم تفعيل الرقم' : 'تم تعطيل الرقم'));
+    } catch (err) {
+      toast.error(err.message || 'فشل تغيير حالة الرقم');
+    }
+  };
+
+  const handleOutbound = async (phoneId, destination) => {
+    const res = await phoneAPI.outbound(phoneId, destination);
+    toast.success(res.message || 'جاري الاتصال');
+    return res;
   };
 
   return (
@@ -814,6 +1062,8 @@ export default function PhoneNumbersPage() {
               onUpdate={handleUpdate}
               onDelete={setDeleteTarget}
               onSetupSip={handleSetupSip}
+              onToggle={handleToggle}
+              onOutbound={(p) => setOutboundTarget(p)}
             />
           ))}
         </div>
@@ -826,7 +1076,17 @@ export default function PhoneNumbersPage() {
           agents={agents}
           providers={providers}
           onClose={() => setShowAddModal(false)}
-          onSuccess={() => { setShowAddModal(false); loadData(); }}
+          onSuccess={() => { setShowAddModal(false); loadData(); toast.success('تم إضافة الرقم بنجاح'); }}
+        />
+      )}
+
+      {/* Outbound Call Modal */}
+      {outboundTarget && (
+        <OutboundCallModal
+          phone={outboundTarget}
+          isDark={isDark}
+          onClose={() => setOutboundTarget(null)}
+          onCall={handleOutbound}
         />
       )}
 

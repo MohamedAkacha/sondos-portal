@@ -245,6 +245,47 @@ agentSchema.pre('save', function (next) {
 
 // ── Get config for LiveKit Room Metadata ──
 agentSchema.methods.toLiveKitConfig = function () {
+  // Check if currently within working hours
+  const wh = this.workingHours;
+  let isWithinWorkingHours = true;
+  let offHoursMessage = '';
+
+  if (wh?.enabled) {
+    try {
+      // Get current time in agent's timezone
+      const tz = wh.timezone || 'Asia/Riyadh';
+      const now = new Date();
+      const formatter = new Intl.DateTimeFormat('en-US', {
+        timeZone: tz,
+        weekday: 'long',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+      });
+      const parts = formatter.formatToParts(now);
+      const weekday = parts.find(p => p.type === 'weekday')?.value?.toLowerCase();
+      const hour = parseInt(parts.find(p => p.type === 'hour')?.value || '0');
+      const minute = parseInt(parts.find(p => p.type === 'minute')?.value || '0');
+      const currentMinutes = hour * 60 + minute;
+
+      const daySchedule = wh.schedule?.[weekday];
+      if (daySchedule && daySchedule.active) {
+        const [startH, startM] = (daySchedule.start || '09:00').split(':').map(Number);
+        const [endH, endM] = (daySchedule.end || '17:00').split(':').map(Number);
+        const startMinutes = startH * 60 + startM;
+        const endMinutes = endH * 60 + endM;
+        isWithinWorkingHours = currentMinutes >= startMinutes && currentMinutes < endMinutes;
+      } else {
+        // Day not active
+        isWithinWorkingHours = false;
+      }
+    } catch (e) {
+      // If timezone calc fails, default to open
+      isWithinWorkingHours = true;
+    }
+    offHoursMessage = wh.offHoursMessage || 'شكراً لاتصالك، نحن خارج ساعات العمل حالياً.';
+  }
+
   return {
     sttProvider: this.stt.provider,
     sttModel: this.stt.model,
@@ -256,6 +297,14 @@ agentSchema.methods.toLiveKitConfig = function () {
     ttsVoice: this.voice.voiceId,
     systemPrompt: this.useCustomPrompt ? this.systemPrompt : this.buildSystemPrompt(),
     greeting: this.greeting,
+    // Working hours — Python Worker reads these to decide behavior
+    workingHours: {
+      enabled: !!wh?.enabled,
+      isWithinWorkingHours,
+      offHoursMessage,
+      timezone: wh?.timezone || 'Asia/Riyadh',
+      schedule: wh?.schedule || {},
+    },
   };
 };
 

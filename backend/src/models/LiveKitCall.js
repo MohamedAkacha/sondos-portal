@@ -113,6 +113,12 @@ const livekitCallSchema = new mongoose.Schema({
     default: 'web',
   },
 
+  // ── Phone Number (for SIP calls) ──
+  phoneNumber: {
+    type: String,
+    default: null,
+  },
+
   // ── Metadata ──
   metadata: {
     type: mongoose.Schema.Types.Mixed,

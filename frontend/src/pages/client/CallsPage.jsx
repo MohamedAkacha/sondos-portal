@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   Phone, PhoneIncoming, PhoneOutgoing, PhoneOff,
   Check, X, Search, RefreshCw, Eye,
@@ -706,7 +707,9 @@ function AutoCallsContent() {
 export default function CallsPage() {
   const { isDark } = useTheme();
   const { t } = useLanguage();
-  const [activeTab, setActiveTab] = useState("autocalls");
+  const [searchParams] = useSearchParams();
+  const phoneFilter = searchParams.get('phoneNumber');
+  const [activeTab, setActiveTab] = useState(phoneFilter ? "livekit" : "autocalls");
 
   const tabs = [
     { id: "autocalls", label: t('calls.title') || "المكالمات", icon: Phone },

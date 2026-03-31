@@ -7,6 +7,8 @@ const Agent = require('../models/Agent');
 const Plan = require('../models/Plan');
 const Subscription = require('../models/Subscription');
 const { agentTemplates } = require('../data/agentTemplates');
+const PhoneNumber = require('../models/PhoneNumber');
+const livekitSip = require('../utils/livekitSip');
 
 // ── Helper: Check agent limit for user's plan ──
 async function checkAgentLimit(userId) {
@@ -176,6 +178,128 @@ exports.updateAgent = async (req, res) => {
 
     await agent.save();
 
+    // ── Sync linked phones when agent STATUS changes ──
+    const statusChanged = req.body.status !== undefined;
+    if (statusChanged && livekitSip.isConfigured()) {
+      try {
+        const linkedPhones = await PhoneNumber.find({
+          agentId: agent._id,
+          sipTrunkId: { $ne: '' },
+        });
+
+        if (linkedPhones.length > 0) {
+          if (agent.status === 'inactive' || agent.status === 'draft') {
+            // ── Agent DISABLED → remove dispatch rules from all linked phones ──
+            let disabledCount = 0;
+            for (const phone of linkedPhones) {
+              if (phone.sipDispatchRuleId) {
+                try {
+                  await livekitSip.deleteDispatchRule(phone.sipDispatchRuleId);
+                } catch (e) {
+                  console.error(`[Agent Status Sync] Rule delete failed for ${phone.phoneNumber}:`, e.message);
+                }
+              }
+              phone.sipDispatchRuleId = '';
+              phone.status = 'inactive';
+              phone.statusMessage = `المساعد "${agent.name}" تم تعطيله — المكالمات متوقفة`;
+              await phone.save();
+              disabledCount++;
+            }
+            console.log(`[Agent Status Sync] Agent disabled → ${disabledCount} phone(s) disabled`);
+
+          } else if (agent.status === 'active') {
+            // ── Agent RE-ENABLED → recreate dispatch rules for inactive phones ──
+            const agentConfig = agent.toLiveKitConfig();
+            let enabledCount = 0;
+            for (const phone of linkedPhones) {
+              if (phone.status === 'inactive' && !phone.sipDispatchRuleId) {
+                try {
+                  const rule = await livekitSip.createDispatchRule({
+                    name: `Route ${phone.phoneNumber} → ${agent.name}`,
+                    trunkIds: [phone.sipTrunkId],
+                    roomPrefix: 'sondos-sip-',
+                    metadata: {
+                      agentConfig,
+                      source: 'sip',
+                      phoneNumber: phone.phoneNumber,
+                      userId: agent.userId.toString(),
+                    },
+                  });
+                  phone.sipDispatchRuleId = rule.dispatchRuleId;
+                  phone.status = 'active';
+                  phone.statusMessage = '';
+                  await phone.save();
+                  enabledCount++;
+                } catch (sipErr) {
+                  console.error(`[Agent Status Sync] Rule create failed for ${phone.phoneNumber}:`, sipErr.message);
+                  phone.statusMessage = `فشل إعادة تفعيل SIP: ${sipErr.message}`;
+                  await phone.save();
+                }
+              }
+            }
+            console.log(`[Agent Status Sync] Agent re-enabled → ${enabledCount} phone(s) re-enabled`);
+          }
+        }
+      } catch (syncErr) {
+        console.error('[Agent Status Sync] Error:', syncErr.message);
+      }
+    }
+
+    // ── Sync SIP Dispatch Rules for linked phone numbers ──
+    // If any SIP-relevant field changed (not status), update all dispatch rules
+    const sipFields = ['personality', 'language', 'greeting', 'systemPrompt', 'useCustomPrompt', 'voice', 'llm', 'stt', 'workingHours'];
+    const sipFieldChanged = sipFields.some(f => req.body[f] !== undefined);
+
+    if (sipFieldChanged && !statusChanged && livekitSip.isConfigured()) {
+      try {
+        const linkedPhones = await PhoneNumber.find({
+          agentId: agent._id,
+          sipTrunkId: { $ne: '' },
+          sipDispatchRuleId: { $ne: '' },
+        });
+
+        if (linkedPhones.length > 0) {
+          const agentConfig = agent.toLiveKitConfig();
+          let syncedCount = 0;
+
+          for (const phone of linkedPhones) {
+            try {
+              // Delete old rule
+              await livekitSip.deleteDispatchRule(phone.sipDispatchRuleId);
+
+              // Create new rule with updated agent config
+              const rule = await livekitSip.createDispatchRule({
+                name: `Route ${phone.phoneNumber} → ${agent.name}`,
+                trunkIds: [phone.sipTrunkId],
+                roomPrefix: 'sondos-sip-',
+                metadata: {
+                  agentConfig,
+                  source: 'sip',
+                  phoneNumber: phone.phoneNumber,
+                  userId: agent.userId.toString(),
+                },
+              });
+
+              phone.sipDispatchRuleId = rule.dispatchRuleId;
+              phone.status = 'active';
+              phone.statusMessage = '';
+              await phone.save();
+              syncedCount++;
+            } catch (sipErr) {
+              console.error(`[Agent SIP Sync] Failed for ${phone.phoneNumber}:`, sipErr.message);
+              phone.statusMessage = `فشل مزامنة SIP: ${sipErr.message}`;
+              await phone.save();
+            }
+          }
+
+          console.log(`[Agent SIP Sync] ${syncedCount}/${linkedPhones.length} dispatch rules updated for agent ${agent.name}`);
+        }
+      } catch (syncErr) {
+        // Don't fail the agent update if SIP sync fails
+        console.error('[Agent SIP Sync] Error:', syncErr.message);
+      }
+    }
+
     console.log(`[Agent Updated] ${agent.name} by ${req.user.email}`);
 
     res.json({
@@ -194,16 +318,47 @@ exports.updateAgent = async (req, res) => {
 // ══════════════════════════════════════════════════════
 exports.deleteAgent = async (req, res) => {
   try {
-    const agent = await Agent.findOneAndDelete({ _id: req.params.id, userId: req.user._id });
+    const agent = await Agent.findOne({ _id: req.params.id, userId: req.user._id });
     if (!agent) {
       return res.status(404).json({ success: false, message: 'المساعد غير موجود' });
     }
 
-    // TODO: Also unlink any phone numbers assigned to this agent
+    // ── Unlink all phone numbers assigned to this agent ──
+    const linkedPhones = await PhoneNumber.find({ agentId: agent._id });
+
+    if (linkedPhones.length > 0) {
+      for (const phone of linkedPhones) {
+        // Delete SIP dispatch rule (phone keeps its trunk but stops routing)
+        if (phone.sipDispatchRuleId && livekitSip.isConfigured()) {
+          try {
+            await livekitSip.deleteDispatchRule(phone.sipDispatchRuleId);
+            console.log(`[Agent Delete] Dispatch rule removed for ${phone.phoneNumber}`);
+          } catch (sipErr) {
+            console.error(`[Agent Delete] Failed to remove dispatch rule for ${phone.phoneNumber}:`, sipErr.message);
+          }
+        }
+
+        // Unlink agent and mark as pending
+        phone.agentId = null;
+        phone.sipDispatchRuleId = '';
+        phone.status = 'pending';
+        phone.statusMessage = 'المساعد المربوط تم حذفه — اربط مساعد جديد';
+        await phone.save();
+      }
+
+      console.log(`[Agent Delete] Unlinked ${linkedPhones.length} phone number(s) from agent ${agent.name}`);
+    }
+
+    // ── Delete the agent ──
+    await Agent.deleteOne({ _id: agent._id });
 
     console.log(`[Agent Deleted] ${agent.name} by ${req.user.email}`);
 
-    res.json({ success: true, message: 'تم حذف المساعد بنجاح' });
+    res.json({
+      success: true,
+      message: 'تم حذف المساعد بنجاح',
+      unlinkedPhones: linkedPhones.length,
+    });
   } catch (error) {
     console.error('[Agent Delete]', error.message);
     res.status(500).json({ success: false, message: 'فشل حذف المساعد' });

@@ -6,14 +6,15 @@
 // =====================================================
 const PhoneNumber = require('../models/PhoneNumber');
 const Agent = require('../models/Agent');
+const Subscription = require('../models/Subscription');
 const twilio = require('../utils/twilio');
 const telnyx = require('../utils/telnyx');
 const livekitSip = require('../utils/livekitSip');
 
 // ── Helper: Check phone number limit ──
 async function checkPhoneLimit(userId) {
-  // TODO: Read from user's plan when plan limits are added
-  const maxPhones = 5;
+  const subscription = await Subscription.findOne({ user: userId, status: 'active' }).populate('plan');
+  const maxPhones = subscription?.plan?.limits?.maxPhoneNumbers || 1;
   const currentCount = await PhoneNumber.countDocuments({ userId });
   return { allowed: currentCount < maxPhones, current: currentCount, max: maxPhones };
 }
@@ -176,6 +177,7 @@ exports.purchaseNumber = async (req, res) => {
           phoneNumber,
           agentName: agent.name,
           agentConfig: agent.toLiveKitConfig(),
+          userId: req.user._id.toString(),
         });
       } catch (sipErr) {
         console.error('[Phone SIP Setup]', sipErr.message);
@@ -253,6 +255,7 @@ exports.addCustomNumber = async (req, res) => {
           phoneNumber,
           agentName: agent.name,
           agentConfig: agent.toLiveKitConfig(),
+          userId: req.user._id.toString(),
           allowedAddresses: sipServer ? [sipServer] : [],
           authUsername: sipUsername || '',
           authPassword: sipPassword || '',
@@ -329,6 +332,7 @@ exports.updatePhone = async (req, res) => {
                 agentConfig: agent.toLiveKitConfig(),
                 source: 'sip',
                 phoneNumber: phone.phoneNumber,
+                userId: req.user._id.toString(),
               },
             });
             phone.sipDispatchRuleId = rule.dispatchRuleId;
@@ -399,9 +403,10 @@ exports.setupSip = async (req, res) => {
       phoneNumber: phone.phoneNumber,
       agentName: agent.name,
       agentConfig: agent.toLiveKitConfig(),
+      userId: phone.userId.toString(),
       allowedAddresses: phone.customSip?.sipServer ? [phone.customSip.sipServer] : [],
       authUsername: phone.customSip?.sipUsername || '',
-      authPassword: phone.customSip?.sipPassword || '',
+      authPassword: phone.getSipPassword(),
     });
 
     phone.sipTrunkId = sipResult.sipTrunkId;
@@ -462,5 +467,301 @@ exports.deletePhone = async (req, res) => {
   } catch (error) {
     console.error('[Phone Delete]', error.message);
     res.status(500).json({ success: false, message: 'فشل حذف الرقم' });
+  }
+};
+
+// ══════════════════════════════════════════════════════
+// GET /api/phones/:id/health — Check SIP health
+// ══════════════════════════════════════════════════════
+exports.healthCheck = async (req, res) => {
+  try {
+    const phone = await PhoneNumber.findOne({ _id: req.params.id, userId: req.user._id });
+    if (!phone) {
+      return res.status(404).json({ success: false, message: 'الرقم غير موجود' });
+    }
+
+    const health = {
+      hasTrunk: !!phone.sipTrunkId,
+      hasRule: !!phone.sipDispatchRuleId,
+      hasAgent: !!phone.agentId,
+      trunkAlive: false,
+      ruleAlive: false,
+      overall: 'unknown',
+    };
+
+    // If no SIP configured, return early
+    if (!phone.sipTrunkId && !phone.sipDispatchRuleId) {
+      health.overall = 'not_configured';
+      return res.json({ success: true, health });
+    }
+
+    // Check LiveKit
+    if (!livekitSip.isConfigured()) {
+      health.overall = 'livekit_unavailable';
+      return res.json({ success: true, health });
+    }
+
+    // Check trunk exists on LiveKit
+    if (phone.sipTrunkId) {
+      try {
+        const trunks = await livekitSip.listSipTrunks();
+        health.trunkAlive = trunks.some(t =>
+          (t.sipTrunkId || t.sip_trunk_id) === phone.sipTrunkId
+        );
+      } catch (e) {
+        console.error('[Health] Trunk check failed:', e.message);
+      }
+    }
+
+    // Check dispatch rule exists on LiveKit
+    if (phone.sipDispatchRuleId) {
+      try {
+        const rules = await livekitSip.listDispatchRules();
+        health.ruleAlive = rules.some(r =>
+          (r.sipDispatchRuleId || r.sip_dispatch_rule_id) === phone.sipDispatchRuleId
+        );
+      } catch (e) {
+        console.error('[Health] Rule check failed:', e.message);
+      }
+    }
+
+    // Determine overall status
+    if (health.trunkAlive && health.ruleAlive && health.hasAgent) {
+      health.overall = 'healthy';
+    } else if (health.trunkAlive && health.ruleAlive && !health.hasAgent) {
+      health.overall = 'no_agent';
+    } else if (health.trunkAlive && !health.ruleAlive) {
+      health.overall = 'rule_missing';
+    } else if (!health.trunkAlive) {
+      health.overall = 'trunk_missing';
+    } else {
+      health.overall = 'degraded';
+    }
+
+    res.json({ success: true, health });
+  } catch (error) {
+    console.error('[Phone Health]', error.message);
+    res.status(500).json({ success: false, message: 'فشل فحص صحة الرقم' });
+  }
+};
+
+// ══════════════════════════════════════════════════════
+// POST /api/phones/:id/toggle — Enable/Disable phone
+// ══════════════════════════════════════════════════════
+exports.toggleStatus = async (req, res) => {
+  try {
+    const phone = await PhoneNumber.findOne({ _id: req.params.id, userId: req.user._id });
+    if (!phone) {
+      return res.status(404).json({ success: false, message: 'الرقم غير موجود' });
+    }
+
+    const isActive = phone.status === 'active';
+
+    if (isActive) {
+      // ── DISABLE: delete dispatch rule, keep trunk ──
+      if (phone.sipDispatchRuleId && livekitSip.isConfigured()) {
+        try {
+          await livekitSip.deleteDispatchRule(phone.sipDispatchRuleId);
+          console.log(`[Phone Toggle] Dispatch rule removed for ${phone.phoneNumber}`);
+        } catch (e) {
+          console.error('[Phone Toggle] Failed to delete rule:', e.message);
+        }
+      }
+      phone.sipDispatchRuleId = '';
+      phone.status = 'inactive';
+      phone.statusMessage = 'تم تعطيل الرقم يدوياً — المكالمات متوقفة';
+      await phone.save();
+
+      res.json({
+        success: true,
+        message: 'تم تعطيل الرقم — المكالمات الواردة متوقفة',
+        status: 'inactive',
+      });
+
+    } else {
+      // ── ENABLE: recreate dispatch rule ──
+      if (!phone.agentId) {
+        return res.status(400).json({
+          success: false,
+          message: 'اربط مساعد بالرقم أولاً قبل التفعيل',
+        });
+      }
+
+      const agent = await Agent.findById(phone.agentId);
+      if (!agent) {
+        return res.status(400).json({
+          success: false,
+          message: 'المساعد المربوط غير موجود — اربط مساعد جديد',
+        });
+      }
+
+      if (!phone.sipTrunkId || !livekitSip.isConfigured()) {
+        return res.status(400).json({
+          success: false,
+          message: 'SIP Trunk غير مُعد — أعد إعداد SIP أولاً',
+        });
+      }
+
+      try {
+        const rule = await livekitSip.createDispatchRule({
+          name: `Route ${phone.phoneNumber} → ${agent.name}`,
+          trunkIds: [phone.sipTrunkId],
+          roomPrefix: 'sondos-sip-',
+          metadata: {
+            agentConfig: agent.toLiveKitConfig(),
+            source: 'sip',
+            phoneNumber: phone.phoneNumber,
+            userId: phone.userId.toString(),
+          },
+        });
+
+        phone.sipDispatchRuleId = rule.dispatchRuleId;
+        phone.status = 'active';
+        phone.statusMessage = '';
+        await phone.save();
+
+        res.json({
+          success: true,
+          message: 'تم تفعيل الرقم — المكالمات الواردة تعمل الآن',
+          status: 'active',
+        });
+      } catch (sipErr) {
+        phone.status = 'error';
+        phone.statusMessage = `فشل إعادة إنشاء Dispatch Rule: ${sipErr.message}`;
+        await phone.save();
+        res.status(500).json({ success: false, message: sipErr.message });
+      }
+    }
+  } catch (error) {
+    console.error('[Phone Toggle]', error.message);
+    res.status(500).json({ success: false, message: 'فشل تغيير حالة الرقم' });
+  }
+};
+
+// ══════════════════════════════════════════════════════
+// POST /api/phones/:id/outbound — Initiate outbound call
+// ══════════════════════════════════════════════════════
+exports.initiateOutbound = async (req, res) => {
+  try {
+    const phone = await PhoneNumber.findOne({ _id: req.params.id, userId: req.user._id });
+    if (!phone) {
+      return res.status(404).json({ success: false, message: 'الرقم غير موجود' });
+    }
+    if (phone.status !== 'active') {
+      return res.status(400).json({ success: false, message: 'الرقم غير مفعّل' });
+    }
+    if (!phone.agentId) {
+      return res.status(400).json({ success: false, message: 'اربط مساعد بالرقم أولاً' });
+    }
+
+    const { destination } = req.body;
+    if (!destination || !destination.startsWith('+')) {
+      return res.status(400).json({ success: false, message: 'أدخل رقم الهاتف بصيغة دولية (مثال: +966501234567)' });
+    }
+
+    if (!livekitSip.isConfigured()) {
+      return res.status(400).json({ success: false, message: 'LiveKit SIP غير مُعد' });
+    }
+
+    // Get agent config
+    const agent = await Agent.findById(phone.agentId);
+    if (!agent) {
+      return res.status(400).json({ success: false, message: 'المساعد المربوط غير موجود' });
+    }
+
+    const agentConfig = agent.toLiveKitConfig();
+    const userId = req.user._id.toString();
+    const roomName = `sondos-out-${userId.slice(-6)}-${Date.now().toString(36)}`;
+
+    // ── Step 1: Determine outbound SIP address based on provider ──
+    let sipAddress;
+    if (phone.provider === 'twilio') {
+      sipAddress = `${phone.phoneNumber.replace('+', '')}@${process.env.TWILIO_ACCOUNT_SID}.sip.twilio.com`;
+    } else if (phone.provider === 'telnyx') {
+      sipAddress = `${phone.phoneNumber.replace('+', '')}@sip.telnyx.com`;
+    } else if (phone.provider === 'custom' && phone.customSip?.sipServer) {
+      sipAddress = `${phone.phoneNumber.replace('+', '')}@${phone.customSip.sipServer}`;
+    } else {
+      return res.status(400).json({ success: false, message: 'لا يمكن تحديد عنوان SIP للمكالمات الصادرة' });
+    }
+
+    // ── Step 2: Create or reuse outbound trunk ──
+    let outboundTrunkId = phone.sipOutboundTrunkId;
+    if (!outboundTrunkId) {
+      try {
+        const trunk = await livekitSip.createOutboundTrunk({
+          name: `Sondos Outbound - ${phone.phoneNumber}`,
+          address: sipAddress,
+          numbers: [phone.phoneNumber],
+          authUsername: phone.provider === 'custom' ? (phone.customSip?.sipUsername || '') : '',
+          authPassword: phone.provider === 'custom' ? phone.getSipPassword() : '',
+        });
+        outboundTrunkId = trunk.sipTrunkId;
+
+        // Save for reuse
+        phone.sipOutboundTrunkId = outboundTrunkId;
+        await phone.save();
+      } catch (trunkErr) {
+        return res.status(500).json({ success: false, message: `فشل إنشاء Outbound Trunk: ${trunkErr.message}` });
+      }
+    }
+
+    // ── Step 3: Create room with agent metadata ──
+    const { RoomServiceClient } = require('livekit-server-sdk');
+    const httpUrl = process.env.LIVEKIT_URL.replace('wss://', 'https://').replace('ws://', 'http://');
+    const roomService = new RoomServiceClient(httpUrl, process.env.LIVEKIT_API_KEY, process.env.LIVEKIT_API_SECRET);
+
+    await roomService.createRoom({
+      name: roomName,
+      emptyTimeout: 120,
+      maxParticipants: 4,
+      metadata: JSON.stringify({
+        agentConfig,
+        userId,
+        source: 'outbound',
+        phoneNumber: phone.phoneNumber,
+        destination,
+      }),
+    });
+
+    // ── Step 4: Dial out via SIP ──
+    const sipResult = await livekitSip.createSipParticipant({
+      sipTrunkId: outboundTrunkId,
+      sipCallTo: `sip:${destination.replace('+', '')}@${sipAddress.split('@')[1]}`,
+      roomName,
+      participantIdentity: `caller-${destination.replace('+', '')}`,
+      participantName: destination,
+    });
+
+    // ── Step 5: Create call record ──
+    const LiveKitCall = require('../models/LiveKitCall');
+    await LiveKitCall.create({
+      roomName,
+      userId: req.user._id,
+      agentId: agent._id,
+      status: 'active',
+      startedAt: new Date(),
+      source: 'sip',
+      phoneNumber: phone.phoneNumber,
+      agentConfig: agent.toLiveKitConfig(),
+      metadata: {
+        direction: 'outbound',
+        destination,
+        sipCallId: sipResult.sipCallId,
+      },
+    });
+
+    console.log(`[Outbound Call] ${phone.phoneNumber} → ${destination} | Room: ${roomName} | Agent: ${agent.name}`);
+
+    res.json({
+      success: true,
+      message: `جاري الاتصال بـ ${destination}`,
+      roomName,
+      sipCallId: sipResult.sipCallId,
+    });
+
+  } catch (error) {
+    console.error('[Outbound Call]', error.message);
+    res.status(500).json({ success: false, message: error.message || 'فشل إجراء المكالمة' });
   }
 };

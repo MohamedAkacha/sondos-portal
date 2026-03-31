@@ -15,6 +15,7 @@ const {
 const crypto = require('crypto');
 const LiveKitCall = require('../models/LiveKitCall');
 const Agent = require('../models/Agent');
+const PhoneNumber = require('../models/PhoneNumber');
 
 const LIVEKIT_URL = process.env.LIVEKIT_URL || '';
 const LIVEKIT_API_KEY = process.env.LIVEKIT_API_KEY;
@@ -197,13 +198,38 @@ exports.webhook = async (req, res) => {
       case 'room_started': {
         const roomName = room?.name;
         if (!roomName) break;
+
+        // Extract userId from room metadata (set by dispatch rule or token endpoint)
+        let userId = null;
+        let source = 'web';
+        let phoneNumber = null;
+        try {
+          const meta = room.metadata ? JSON.parse(room.metadata) : {};
+          userId = meta.userId || null;
+          source = meta.source || 'web';
+          phoneNumber = meta.phoneNumber || null;
+        } catch (e) { /* metadata not JSON, ignore */ }
+
+        const updateFields = {
+          roomSid: room.sid || '',
+          status: 'active',
+          startedAt: new Date(),
+          ...(userId && { userId }),
+          ...(source && { source }),
+          ...(phoneNumber && { phoneNumber }),
+        };
+
         const callRecord = await LiveKitCall.findOneAndUpdate(
           { roomName, status: 'created' },
-          { $set: { roomSid: room.sid || '', status: 'active', startedAt: new Date() } },
+          { $set: updateFields },
           { new: true }
         );
         if (!callRecord) {
-          await LiveKitCall.create({ roomName, roomSid: room.sid || '', status: 'active', startedAt: new Date() });
+          await LiveKitCall.create({ roomName, ...updateFields });
+        }
+
+        if (source === 'sip') {
+          console.log(`[LiveKit Webhook] 📞 SIP call started → ${roomName} | User: ${userId || 'unknown'} | Phone: ${phoneNumber || 'unknown'}`);
         }
         break;
       }
@@ -226,6 +252,36 @@ exports.webhook = async (req, res) => {
           callRecord.roomSid = room.sid || callRecord.roomSid;
           await callRecord.save();
           console.log(`[LiveKit Webhook] ✅ Room finished → ${roomName} | ${callRecord.durationSeconds}s`);
+
+          // ── Update Agent & PhoneNumber stats ──
+          const duration = callRecord.durationSeconds || 0;
+          let meta = {};
+          try { meta = room.metadata ? JSON.parse(room.metadata) : {}; } catch (e) {}
+
+          // Update Agent stats
+          const agentId = callRecord.agentId || meta.agentConfig?.agentId;
+          if (agentId) {
+            try {
+              await Agent.findByIdAndUpdate(agentId, {
+                $inc: { 'stats.totalCalls': 1, 'stats.totalDurationSeconds': duration },
+                $set: { 'stats.lastCallAt': endedAt },
+              });
+            } catch (e) { console.error('[Stats] Agent update failed:', e.message); }
+          }
+
+          // Update PhoneNumber stats (SIP calls only)
+          const phoneNumber = callRecord.phoneNumber || meta.phoneNumber;
+          if (phoneNumber) {
+            try {
+              await PhoneNumber.findOneAndUpdate(
+                { phoneNumber },
+                {
+                  $inc: { 'stats.totalCalls': 1, 'stats.totalDurationSeconds': duration },
+                  $set: { 'stats.lastCallAt': endedAt },
+                },
+              );
+            } catch (e) { console.error('[Stats] PhoneNumber update failed:', e.message); }
+          }
         }
         break;
       }
@@ -467,6 +523,8 @@ exports.listCalls = async (req, res) => {
     if (req.user.role !== 'admin') filter.userId = req.user._id;
     else if (req.query.userId) filter.userId = req.query.userId;
     if (req.query.status) filter.status = req.query.status;
+    if (req.query.phoneNumber) filter.phoneNumber = req.query.phoneNumber;
+    if (req.query.source) filter.source = req.query.source;
 
     const [calls, total] = await Promise.all([
       LiveKitCall.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit).populate('userId', 'name email').lean(),

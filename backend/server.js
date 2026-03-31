@@ -18,6 +18,30 @@ const start = async () => {
       console.log(`  ${process.env.NODE_ENV || 'development'}`);
       console.log('══════════════════════════════════════');
       console.log('');
+
+      // ── SIP Cleanup Cron — runs daily at 3:00 AM ──
+      const scheduleSipCleanup = () => {
+        const now = new Date();
+        const next = new Date();
+        next.setHours(3, 0, 0, 0);
+        if (next <= now) next.setDate(next.getDate() + 1);
+        const delay = next - now;
+
+        setTimeout(async () => {
+          try {
+            const { runCleanup } = require('./src/utils/sipCleanup');
+            await runCleanup();
+          } catch (e) {
+            console.error('[SIP Cleanup Cron]', e.message);
+          }
+          // Schedule next run
+          scheduleSipCleanup();
+        }, delay);
+
+        console.log(`  [Cron] SIP cleanup scheduled at ${next.toLocaleString()}`);
+      };
+
+      scheduleSipCleanup();
     });
   } catch (error) {
     console.error('Failed to start server:', error);

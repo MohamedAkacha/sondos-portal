@@ -18,4 +18,7 @@ router.put('/users/:id', adminCtrl.updateUser);
 router.put('/users/:id/status', adminCtrl.updateUserStatus);
 router.delete('/users/:id', adminCtrl.deleteUser);
 
+// SIP Cleanup
+router.post("/sip-cleanup", adminCtrl.sipCleanup);
+
 module.exports = router;
