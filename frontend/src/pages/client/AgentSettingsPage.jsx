@@ -1226,7 +1226,7 @@ export default function AgentSettingsPage() {
   const tabParam = searchParams.get('tab');
   const [activeTab, setActiveTab] = useState(tabParam || 'basic');
 
-  const isOutbound = agent.callDirection === 'outbound' || agent.callDirection === 'both';
+  const isOutbound = agent?.callDirection === 'outbound' || agent?.callDirection === 'both';
 
   const TABS = [
     { key: 'basic',       label: 'أساسي',    icon: User },
