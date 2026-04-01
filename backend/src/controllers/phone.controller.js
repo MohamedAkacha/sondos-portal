@@ -19,6 +19,28 @@ async function checkPhoneLimit(userId) {
   return { allowed: currentCount < maxPhones, current: currentCount, max: maxPhones };
 }
 
+// ── Helper: Get LiveKit SIP Inbound URI ──
+// Priority: LIVEKIT_SIP_URI env var → auto-extract from LIVEKIT_URL
+function getSipInboundUri() {
+  // 1. Check explicit env var (e.g. "4gz4kilfp9u.sip.livekit.cloud")
+  const explicit = process.env.LIVEKIT_SIP_URI || '';
+  if (explicit) return explicit;
+
+  // 2. Auto-extract from LIVEKIT_URL (fallback)
+  try {
+    const livekitUrl = process.env.LIVEKIT_URL || '';
+    const urlStr = livekitUrl.replace('wss://', 'https://').replace('ws://', 'http://');
+    const parsed = new URL(urlStr);
+    const hostParts = parsed.hostname.split('.');
+    if (hostParts.length >= 3) {
+      return `${hostParts[0]}.sip.livekit.cloud`;
+    }
+  } catch (e) {
+    console.error('[SIP URI] Failed to build:', e.message);
+  }
+  return '';
+}
+
 // ══════════════════════════════════════════════════════
 // GET /api/phones — List user's phone numbers
 // ══════════════════════════════════════════════════════
@@ -113,41 +135,22 @@ exports.getSipInfo = async (req, res) => {
       });
     }
 
-    // ── Extract project ID from LIVEKIT_URL ──
-    // e.g. "wss://4gz4kilfp9u.livekit.cloud" → "4gz4kilfp9u"
-    let projectId = '';
-    try {
-      const urlStr = livekitUrl.replace('wss://', 'https://').replace('ws://', 'http://');
-      const parsed = new URL(urlStr);
-      const hostParts = parsed.hostname.split('.');
-      if (hostParts.length >= 3) {
-        projectId = hostParts[0];
-      }
-    } catch (e) {
-      console.error('[SIP Info] Failed to parse LIVEKIT_URL:', e.message);
-    }
-
-    // ── Build SIP Inbound URI ──
-    const sipInboundUri = projectId ? `${projectId}.sip.livekit.cloud` : '';
+    // ── Get SIP Inbound URI (from env var or auto-extract) ──
+    const sipInboundUri = getSipInboundUri();
 
     // ── Get Outbound IPs ──
-    // LiveKit Cloud SIP outbound IPs (may vary by region)
-    // These are the IPs that Exacall needs to whitelist for outbound calls
     let outboundIps = [];
     let outboundIpNote = '';
 
     if (livekitSip.isConfigured()) {
-      // Try to get outbound IPs from LiveKit (if available)
-      // For now, guide user to check LiveKit Dashboard
       outboundIpNote = 'تحقق من LiveKit Dashboard → SIP → Outbound IPs لمعرفة عناوين IP الصادرة';
     }
 
-    console.log(`[SIP Info] URI: ${sipInboundUri} | Project: ${projectId}`);
+    console.log(`[SIP Info] URI: ${sipInboundUri}`);
 
     res.json({
       success: true,
       sipInboundUri,
-      projectId,
       livekitUrl,
       outboundIps,
       outboundIpNote,
@@ -341,18 +344,7 @@ exports.addCustomNumber = async (req, res) => {
     const inboundAuthPassword = (authType === 'username_password') ? (sipPassword || '') : '';
 
     // ── Build LiveKit SIP Inbound URI ──
-    let sipInboundUri = '';
-    try {
-      const livekitUrl = process.env.LIVEKIT_URL || '';
-      const urlStr = livekitUrl.replace('wss://', 'https://').replace('ws://', 'http://');
-      const parsed = new URL(urlStr);
-      const hostParts = parsed.hostname.split('.');
-      if (hostParts.length >= 3) {
-        sipInboundUri = `${hostParts[0]}.sip.livekit.cloud`;
-      }
-    } catch (e) {
-      console.error('[Phone Custom] Failed to build SIP URI:', e.message);
-    }
+    const sipInboundUri = getSipInboundUri();
 
     // ── Create LiveKit SIP Trunks (Inbound + Outbound) ──
     let sipResult = { sipTrunkId: '', sipDispatchRuleId: '', sipOutboundTrunkId: '' };
@@ -588,18 +580,7 @@ exports.setupSip = async (req, res) => {
     });
 
     // ── Build LiveKit SIP Inbound URI ──
-    let sipInboundUri = '';
-    try {
-      const livekitUrl = process.env.LIVEKIT_URL || '';
-      const urlStr = livekitUrl.replace('wss://', 'https://').replace('ws://', 'http://');
-      const parsed = new URL(urlStr);
-      const hostParts = parsed.hostname.split('.');
-      if (hostParts.length >= 3) {
-        sipInboundUri = `${hostParts[0]}.sip.livekit.cloud`;
-      }
-    } catch (e) {
-      console.error('[Phone SIP Setup] Failed to build SIP URI:', e.message);
-    }
+    const sipInboundUri = getSipInboundUri();
 
     // ── Save results ──
     phone.sipTrunkId = sipResult.sipTrunkId || '';
