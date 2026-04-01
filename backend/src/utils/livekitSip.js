@@ -291,12 +291,17 @@ async function listDispatchRules() {
  * @param {string} config.phoneNumber - E.164 phone number
  * @param {string} config.agentName - Agent name for labeling
  * @param {object} config.agentConfig - Agent LiveKit config (from agent.toLiveKitConfig())
- * @param {string[]} config.allowedAddresses - Provider SIP IPs (optional)
- * @param {string} config.authUsername - SIP auth (optional)
- * @param {string} config.authPassword - SIP auth (optional)
+ * @param {string} config.userId - Owner user ID
+ * @param {string} config.direction - 'inbound', 'outbound', or 'both'
+ * @param {string} config.sipAddress - Outbound SIP address (e.g. "2436.sipgw.exacall.com:5760")
+ * @param {string[]} config.allowedAddresses - Provider SIP IPs for inbound (when authType is 'ip')
+ * @param {string} config.authUsername - SIP auth username
+ * @param {string} config.authPassword - SIP auth password
+ * @param {string} config.inboundAuthType - 'ip' or 'username_password' (default: 'ip')
  */
 async function setupPhoneNumber(config) {
   const direction = config.direction || 'inbound';
+  const inboundAuthType = config.inboundAuthType || 'ip';
   const result = {
     sipTrunkId: '',
     sipDispatchRuleId: '',
@@ -305,13 +310,25 @@ async function setupPhoneNumber(config) {
 
   // ── 1. Inbound Trunk + Dispatch Rule (for 'inbound' or 'both') ──
   if (direction === 'inbound' || direction === 'both') {
-    const trunk = await createInboundTrunk({
+
+    // ── Build inbound trunk config based on auth type ──
+    const inboundConfig = {
       name: `Sondos - ${config.phoneNumber} (${config.agentName})`,
       numbers: [config.phoneNumber],
-      allowedAddresses: config.allowedAddresses || [],
-      authUsername: config.authUsername || '',
-      authPassword: config.authPassword || '',
-    });
+    };
+
+    if (inboundAuthType === 'username_password') {
+      // Auth via username/password — same credentials as outbound
+      inboundConfig.authUsername = config.authUsername || '';
+      inboundConfig.authPassword = config.authPassword || '';
+      inboundConfig.allowedAddresses = []; // No IP filtering needed
+    } else {
+      // Auth via IP whitelist (default) — like AutoCalls "IP address" option
+      inboundConfig.allowedAddresses = config.allowedAddresses || [];
+      // No username/password for inbound
+    }
+
+    const trunk = await createInboundTrunk(inboundConfig);
     result.sipTrunkId = trunk.sipTrunkId;
 
     const rule = await createDispatchRule({

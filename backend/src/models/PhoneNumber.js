@@ -103,11 +103,40 @@ const phoneNumberSchema = new mongoose.Schema({
   },
 
   // ── Custom SIP Trunk (for provider: 'custom') ──
+  // Matches AutoCalls SIP trunk configuration fields
   customSip: {
+    // ── Authentication ──
     sipServer: { type: String, default: '' },
+    sipPort: { type: Number, default: 5060 },
     sipUsername: { type: String, default: '' },
     sipPassword: { type: String, default: '' },
     sipTransport: { type: String, enum: ['udp', 'tcp', 'tls'], default: 'udp' },
+
+    // ── Outbound Settings ──
+    outboundFixedIp: { type: Boolean, default: false },
+    outboundNumberFormat: {
+      type: String,
+      enum: ['international_plus', 'international_no_plus', 'national'],
+      default: 'international_no_plus',
+    },
+
+    // ── Inbound Settings ──
+    inboundAuthType: {
+      type: String,
+      enum: ['ip', 'username_password'],
+      default: 'ip',
+    },
+    allowedIpAddresses: {
+      type: [String],
+      default: [],
+    },
+  },
+
+  // ── LiveKit SIP Inbound URI (auto-filled on SIP setup) ──
+  // e.g. "4gz4kilfp9u.sip.livekit.cloud"
+  sipInboundUri: {
+    type: String,
+    default: '',
   },
 
   // ── Status ──
@@ -186,11 +215,17 @@ phoneNumberSchema.methods.toPublicJSON = function () {
     sipTrunkId: this.sipTrunkId || '',
     sipDispatchRuleId: this.sipDispatchRuleId || '',
     sipOutboundTrunkId: this.sipOutboundTrunkId || '',
+    sipInboundUri: this.sipInboundUri || '',
     customSip: this.provider === 'custom' ? {
       sipServer: this.customSip?.sipServer || '',
+      sipPort: this.customSip?.sipPort || 5060,
       sipUsername: this.customSip?.sipUsername || '',
       hasPassword: !!this.customSip?.sipPassword,
       sipTransport: this.customSip?.sipTransport || 'udp',
+      outboundFixedIp: this.customSip?.outboundFixedIp || false,
+      outboundNumberFormat: this.customSip?.outboundNumberFormat || 'international_no_plus',
+      inboundAuthType: this.customSip?.inboundAuthType || 'ip',
+      allowedIpAddresses: this.customSip?.allowedIpAddresses || [],
     } : undefined,
     settings: this.settings,
     monthlyPrice: this.monthlyPrice,

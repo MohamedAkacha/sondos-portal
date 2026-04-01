@@ -7,6 +7,7 @@ export const phoneAPI = {
   list: () => apiCall('/phones'),
   get: (id) => apiCall(`/phones/${id}`),
   getProviders: () => apiCall('/phones/providers'),
+  getSipInfo: () => apiCall('/phones/sip-info'),
   searchAvailable: (provider, country, contains) =>
     apiCall(`/phones/available?provider=${provider}&country=${country}${contains ? `&contains=${contains}` : ''}&limit=10`),
   purchase: (data) => apiCall('/phones/purchase', { method: 'POST', body: JSON.stringify(data) }),

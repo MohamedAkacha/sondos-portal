@@ -12,6 +12,9 @@ router.use(protect);
 // Provider info (must be before /:id routes)
 router.get('/providers', phoneCtrl.getProviders);
 
+// SIP info — LiveKit SIP URI + Outbound IPs (must be before /:id routes)
+router.get('/sip-info', phoneCtrl.getSipInfo);
+
 // Search available numbers to buy
 router.get('/available', phoneCtrl.searchAvailable);
 

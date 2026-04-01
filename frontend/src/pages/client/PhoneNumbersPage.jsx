@@ -277,6 +277,36 @@ function PhoneCard({ phone, isDark, agents, onUpdate, onDelete, onSetupSip, onTo
         )}
       </div>
 
+      {/* SIP Trunk Status — Inbound / Outbound / URI */}
+      {phone.provider === 'custom' && (
+        <div className={`mt-3 flex flex-wrap items-center gap-3 text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+          <div className="flex items-center gap-1.5">
+            <PhoneIncoming className="w-3 h-3" />
+            <span>Inbound</span>
+            {phone.sipTrunkId ? (
+              <CheckCircle className="w-3.5 h-3.5 text-emerald-400" />
+            ) : (
+              <XCircle className="w-3.5 h-3.5 text-red-400" />
+            )}
+          </div>
+          <div className="flex items-center gap-1.5">
+            <PhoneOutgoing className="w-3 h-3" />
+            <span>Outbound</span>
+            {phone.sipOutboundTrunkId ? (
+              <CheckCircle className="w-3.5 h-3.5 text-emerald-400" />
+            ) : (
+              <XCircle className="w-3.5 h-3.5 text-red-400" />
+            )}
+          </div>
+          {phone.sipInboundUri && (
+            <div className={`flex items-center gap-1.5 font-mono ${isDark ? 'text-teal-500/70' : 'text-teal-600/70'}`}>
+              <Server className="w-3 h-3" />
+              <span>{phone.sipInboundUri}</span>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Health Check Result */}
       {(checking || health) && (
         <div className={`mt-3 flex items-center gap-2 px-3 py-2 rounded-lg text-xs ${
@@ -323,12 +353,33 @@ function AddNumberModal({ isDark, agents, providers, onClose, onSuccess }) {
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState(null);
 
-  // Custom SIP fields
+  // Custom SIP fields — matches AutoCalls SIP trunk config
   const [customPhone, setCustomPhone] = useState('');
   const [customName, setCustomName] = useState('');
+  // Authentication
   const [sipServer, setSipServer] = useState('');
+  const [sipPort, setSipPort] = useState('5060');
   const [sipUsername, setSipUsername] = useState('');
   const [sipPassword, setSipPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  // Outbound Settings
+  const [outboundFixedIp, setOutboundFixedIp] = useState(false);
+  const [outboundNumberFormat, setOutboundNumberFormat] = useState('international_no_plus');
+  // Inbound Settings
+  const [inboundAuthType, setInboundAuthType] = useState('ip');
+  const [allowedIpAddresses, setAllowedIpAddresses] = useState([]);
+  const [newIpAddress, setNewIpAddress] = useState('');
+  // SIP Info from backend (LiveKit SIP URI + outbound IPs)
+  const [sipInfo, setSipInfo] = useState(null);
+
+  // Load SIP info when custom mode is selected
+  useEffect(() => {
+    if (mode === 'custom' && !sipInfo) {
+      phoneAPI.getSipInfo().then(res => {
+        if (res.success) setSipInfo(res);
+      }).catch(() => {});
+    }
+  }, [mode, sipInfo]);
 
   // Search available numbers
   const handleSearch = async () => {
@@ -365,7 +416,7 @@ function AddNumberModal({ isDark, agents, providers, onClose, onSuccess }) {
     }
   };
 
-  // Add custom SIP
+  // Add custom SIP — sends all AutoCalls-style fields
   const handleAddCustom = async () => {
     if (!customPhone) return;
     setCreating(true);
@@ -376,9 +427,17 @@ function AddNumberModal({ isDark, agents, providers, onClose, onSuccess }) {
         friendlyName: customName || customPhone,
         agentId: selectedAgent || undefined,
         country,
+        // Authentication
         sipServer,
+        sipPort: parseInt(sipPort) || 5060,
         sipUsername,
         sipPassword,
+        // Outbound Settings
+        outboundFixedIp,
+        outboundNumberFormat,
+        // Inbound Settings
+        inboundAuthType,
+        allowedIpAddresses,
       });
       onSuccess();
     } catch (err) {
@@ -607,23 +666,23 @@ function AddNumberModal({ isDark, agents, providers, onClose, onSuccess }) {
           </div>
         )}
 
-        {/* Custom SIP Mode */}
+        {/* Custom SIP Mode — AutoCalls-style configuration */}
         {mode === 'custom' && (
-          <div className="space-y-4">
+          <div className="space-y-5">
             <button onClick={() => setMode(null)} className={`text-xs ${isDark ? 'text-gray-500 hover:text-gray-300' : 'text-gray-400 hover:text-gray-600'}`}>
               ← رجوع
             </button>
 
-            {/* Phone number */}
+            {/* ═══ Section 1: SIP Extension ═══ */}
             <div>
               <label className={`block text-sm font-medium mb-1.5 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                رقم الهاتف <span className="text-red-400">*</span>
+                Your SIP extension <span className="text-red-400">*</span>
               </label>
               <input
                 type="text"
                 value={customPhone}
                 onChange={(e) => setCustomPhone(e.target.value)}
-                placeholder="+966501234567"
+                placeholder="+966115062529"
                 dir="ltr"
                 className={`w-full px-4 py-2.5 rounded-xl border text-sm font-mono ${
                   isDark ? 'bg-[#0a0a0b] border-[#1f1f23] text-white placeholder:text-gray-600' : 'bg-gray-50 border-gray-200 text-gray-900 placeholder:text-gray-400'
@@ -631,76 +690,323 @@ function AddNumberModal({ isDark, agents, providers, onClose, onSuccess }) {
               />
             </div>
 
-            {/* Friendly name */}
-            <div>
-              <label className={`block text-sm font-medium mb-1.5 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>اسم مميز</label>
-              <input
-                type="text"
-                value={customName}
-                onChange={(e) => setCustomName(e.target.value)}
-                placeholder="مثال: خط الاستقبال الرئيسي"
-                className={`w-full px-4 py-2.5 rounded-xl border text-sm ${
-                  isDark ? 'bg-[#0a0a0b] border-[#1f1f23] text-white placeholder:text-gray-600' : 'bg-gray-50 border-gray-200 text-gray-900 placeholder:text-gray-400'
-                }`}
-              />
-            </div>
-
-            {/* Country */}
-            <div>
-              <label className={`block text-sm font-medium mb-1.5 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>البلد</label>
-              <select
-                value={country}
-                onChange={(e) => setCountry(e.target.value)}
-                className={`w-full px-4 py-2.5 rounded-xl border text-sm ${
-                  isDark ? 'bg-[#0a0a0b] border-[#1f1f23] text-white' : 'bg-gray-50 border-gray-200 text-gray-900'
-                }`}
-              >
-                {COUNTRIES.map(c => (
-                  <option key={c.code} value={c.code}>{c.flag} {c.name}</option>
-                ))}
-              </select>
-            </div>
-
-            {/* SIP Settings */}
+            {/* ═══ Section 2: Authentication ═══ */}
             <div className={`rounded-xl border p-4 space-y-3 ${isDark ? 'bg-[#0a0a0b] border-[#1f1f23]' : 'bg-gray-50 border-gray-200'}`}>
-              <p className={`text-xs font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                🔧 بيانات SIP Trunk (اختياري — للمزوّدين اللي يدعمون SIP)
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-sm">🔐</span>
+                <p className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Authentication</p>
+              </div>
+              <p className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                Credentials for SIP authentication
               </p>
-              <input
-                type="text"
-                value={sipServer}
-                onChange={(e) => setSipServer(e.target.value)}
-                placeholder="SIP Server (مثال: sip.provider.com)"
-                dir="ltr"
-                className={`w-full px-3 py-2 rounded-lg border text-xs ${
-                  isDark ? 'bg-[#111113] border-[#1f1f23] text-gray-300 placeholder:text-gray-600' : 'bg-white border-gray-200 text-gray-700 placeholder:text-gray-400'
-                }`}
-              />
-              <div className="grid grid-cols-2 gap-2">
+
+              <div>
+                <label className={`block text-xs font-medium mb-1 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                  Username <span className="text-red-400">*</span>
+                </label>
                 <input
                   type="text"
                   value={sipUsername}
                   onChange={(e) => setSipUsername(e.target.value)}
-                  placeholder="Username"
+                  placeholder="2436919101"
                   dir="ltr"
-                  className={`px-3 py-2 rounded-lg border text-xs ${
+                  className={`w-full px-3 py-2 rounded-lg border text-sm font-mono ${
                     isDark ? 'bg-[#111113] border-[#1f1f23] text-gray-300 placeholder:text-gray-600' : 'bg-white border-gray-200 text-gray-700 placeholder:text-gray-400'
                   }`}
                 />
-                <input
-                  type="password"
-                  value={sipPassword}
-                  onChange={(e) => setSipPassword(e.target.value)}
-                  placeholder="Password"
-                  dir="ltr"
-                  className={`px-3 py-2 rounded-lg border text-xs ${
-                    isDark ? 'bg-[#111113] border-[#1f1f23] text-gray-300 placeholder:text-gray-600' : 'bg-white border-gray-200 text-gray-700 placeholder:text-gray-400'
-                  }`}
-                />
+                <p className={`text-xs mt-1 ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>The username for SIP authentication</p>
+              </div>
+
+              <div>
+                <label className={`block text-xs font-medium mb-1 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                  Password <span className="text-red-400">*</span>
+                </label>
+                <div className="relative">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    value={sipPassword}
+                    onChange={(e) => setSipPassword(e.target.value)}
+                    placeholder="••••••••"
+                    dir="ltr"
+                    className={`w-full px-3 py-2 rounded-lg border text-sm font-mono pr-10 ${
+                      isDark ? 'bg-[#111113] border-[#1f1f23] text-gray-300 placeholder:text-gray-600' : 'bg-white border-gray-200 text-gray-700 placeholder:text-gray-400'
+                    }`}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className={`absolute left-2 top-1/2 -translate-y-1/2 p-1 ${isDark ? 'text-gray-500 hover:text-gray-300' : 'text-gray-400 hover:text-gray-600'}`}
+                  >
+                    <Eye className="w-4 h-4" />
+                  </button>
+                </div>
+                <p className={`text-xs mt-1 ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>The password used for SIP authentication.</p>
               </div>
             </div>
 
-            {/* Agent */}
+            {/* ═══ Section 3: Outbound Settings ═══ */}
+            <div className={`rounded-xl border p-4 space-y-3 ${isDark ? 'bg-[#0a0a0b] border-[#1f1f23]' : 'bg-gray-50 border-gray-200'}`}>
+              <div className="flex items-center gap-2 mb-1">
+                <PhoneOutgoing className={`w-4 h-4 ${isDark ? 'text-teal-400' : 'text-teal-600'}`} />
+                <p className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Outbound settings</p>
+              </div>
+              <p className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                The settings for outbound calls from your SIP trunk.
+              </p>
+
+              {/* SIP Address + Port */}
+              <div>
+                <label className={`block text-xs font-medium mb-1 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                  SIP address <span className="text-red-400">*</span>
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={sipServer}
+                    onChange={(e) => setSipServer(e.target.value)}
+                    placeholder="2436.sipgw.exacall.com"
+                    dir="ltr"
+                    className={`flex-1 px-3 py-2 rounded-lg border text-sm font-mono ${
+                      isDark ? 'bg-[#111113] border-[#1f1f23] text-gray-300 placeholder:text-gray-600' : 'bg-white border-gray-200 text-gray-700 placeholder:text-gray-400'
+                    }`}
+                  />
+                  <input
+                    type="text"
+                    value={sipPort}
+                    onChange={(e) => setSipPort(e.target.value)}
+                    placeholder="5060"
+                    dir="ltr"
+                    className={`w-20 px-3 py-2 rounded-lg border text-sm font-mono text-center ${
+                      isDark ? 'bg-[#111113] border-[#1f1f23] text-gray-300 placeholder:text-gray-600' : 'bg-white border-gray-200 text-gray-700 placeholder:text-gray-400'
+                    }`}
+                  />
+                </div>
+                <p className={`text-xs mt-1 ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>The address of the SIP trunk, without the port</p>
+              </div>
+
+              {/* Fixed outbound IP toggle */}
+              <div className={`flex items-start gap-3 p-3 rounded-lg ${isDark ? 'bg-[#111113]' : 'bg-white'}`}>
+                <button
+                  type="button"
+                  onClick={() => setOutboundFixedIp(!outboundFixedIp)}
+                  className={`mt-0.5 w-10 h-5 rounded-full transition-colors flex-shrink-0 ${outboundFixedIp ? 'bg-teal-500' : isDark ? 'bg-gray-700' : 'bg-gray-300'}`}
+                >
+                  <div className={`w-4 h-4 rounded-full bg-white shadow transition-transform ${outboundFixedIp ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                </button>
+                <div>
+                  <p className={`text-xs font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                    Outbound call will come from a fixed IP address
+                  </p>
+                  <p className={`text-xs mt-1 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                    Some providers require a fixed outbound IP address for authorizing calls. Enable it only if you are sure you need this option.
+                  </p>
+                  {outboundFixedIp && sipInfo?.outboundIps?.length > 0 && (
+                    <p className={`text-xs mt-1 font-mono ${isDark ? 'text-teal-400' : 'text-teal-600'}`}>
+                      IP: {sipInfo.outboundIps.join(', ')}
+                    </p>
+                  )}
+                  {outboundFixedIp && (!sipInfo?.outboundIps || sipInfo.outboundIps.length === 0) && (
+                    <p className={`text-xs mt-1 ${isDark ? 'text-amber-400' : 'text-amber-600'}`}>
+                      {sipInfo?.outboundIpNote || 'تحقق من LiveKit Dashboard → SIP → Outbound IPs'}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* Outbound calling number format */}
+              <div>
+                <label className={`block text-xs font-medium mb-2 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                  Outbound calling number format <span className="text-red-400">*</span>
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { value: 'international_plus', label: 'International', sub: '(with + in front)', example: 'Eg. +1 202 555 0123', icon: '➕' },
+                    { value: 'international_no_plus', label: 'International', sub: '(without + in front)', example: 'Eg. 1 202 555 0123', icon: '🌐' },
+                    { value: 'national', label: 'National', sub: '(without country code)', example: 'Eg. 0741926265', icon: '📞' },
+                  ].map(fmt => (
+                    <button
+                      key={fmt.value}
+                      type="button"
+                      onClick={() => setOutboundNumberFormat(fmt.value)}
+                      className={`p-2.5 rounded-lg border text-center transition-all ${
+                        outboundNumberFormat === fmt.value
+                          ? isDark ? 'border-teal-500/50 bg-teal-500/10' : 'border-teal-400 bg-teal-50'
+                          : isDark ? 'border-[#1f1f23] hover:border-gray-600' : 'border-gray-200 hover:border-gray-300'
+                      }`}
+                    >
+                      <p className="text-base mb-1">{fmt.icon}</p>
+                      <p className={`text-xs font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>{fmt.label}</p>
+                      <p className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>{fmt.sub}</p>
+                      <p className={`text-xs mt-1 font-mono ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>{fmt.example}</p>
+                    </button>
+                  ))}
+                </div>
+                <p className={`text-xs mt-1.5 ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>
+                  Select how you want the calling number to be formatted when calling customers
+                </p>
+              </div>
+            </div>
+
+            {/* ═══ Section 4: Inbound Settings ═══ */}
+            <div className={`rounded-xl border p-4 space-y-3 ${isDark ? 'bg-[#0a0a0b] border-[#1f1f23]' : 'bg-gray-50 border-gray-200'}`}>
+              <div className="flex items-center gap-2 mb-1">
+                <PhoneIncoming className={`w-4 h-4 ${isDark ? 'text-cyan-400' : 'text-cyan-600'}`} />
+                <p className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Inbound settings</p>
+              </div>
+              <p className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                The settings for inbound calls to your SIP trunk.
+              </p>
+
+              {/* Our SIP address (LiveKit URI) */}
+              <div>
+                <label className={`block text-xs font-medium mb-1 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Our SIP address</label>
+                <div className={`flex items-center gap-2 p-2.5 rounded-lg ${isDark ? 'bg-[#111113]' : 'bg-white'}`}>
+                  <p className={`flex-1 text-sm font-mono font-semibold ${isDark ? 'text-teal-400' : 'text-teal-600'}`}>
+                    {sipInfo?.sipInboundUri || 'جاري التحميل...'}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (sipInfo?.sipInboundUri) {
+                        navigator.clipboard.writeText(sipInfo.sipInboundUri);
+                      }
+                    }}
+                    className={`text-xs px-2 py-1 rounded ${isDark ? 'bg-[#1a1a1d] text-gray-400 hover:text-white' : 'bg-gray-100 text-gray-500 hover:text-gray-700'}`}
+                  >
+                    نسخ
+                  </button>
+                </div>
+              </div>
+
+              {/* Authorization type */}
+              <div>
+                <label className={`block text-xs font-medium mb-2 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                  Authorization type <span className="text-red-400">*</span>
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setInboundAuthType('ip')}
+                    className={`p-3 rounded-lg border text-center transition-all ${
+                      inboundAuthType === 'ip'
+                        ? isDark ? 'border-teal-500/50 bg-teal-500/10' : 'border-teal-400 bg-teal-50'
+                        : isDark ? 'border-[#1f1f23] hover:border-gray-600' : 'border-gray-200 hover:border-gray-300'
+                    }`}
+                  >
+                    <Globe className={`w-5 h-5 mx-auto mb-1 ${inboundAuthType === 'ip' ? 'text-teal-400' : isDark ? 'text-gray-500' : 'text-gray-400'}`} />
+                    <p className={`text-xs font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>IP address</p>
+                    <p className={`text-xs mt-0.5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Whitelist IP addresses</p>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setInboundAuthType('username_password')}
+                    className={`p-3 rounded-lg border text-center transition-all ${
+                      inboundAuthType === 'username_password'
+                        ? isDark ? 'border-teal-500/50 bg-teal-500/10' : 'border-teal-400 bg-teal-50'
+                        : isDark ? 'border-[#1f1f23] hover:border-gray-600' : 'border-gray-200 hover:border-gray-300'
+                    }`}
+                  >
+                    <span className="text-lg block mb-1">🔑</span>
+                    <p className={`text-xs font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>Username and password</p>
+                    <p className={`text-xs mt-0.5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Same as for outbound</p>
+                  </button>
+                </div>
+                <p className={`text-xs mt-1.5 ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>
+                  Select the type of authorization for your SIP trunk.
+                </p>
+              </div>
+
+              {/* Allowed IP addresses (only for IP auth type) */}
+              {inboundAuthType === 'ip' && (
+                <div>
+                  <label className={`block text-xs font-medium mb-1 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                    Allowed IP addresses <span className="text-red-400">*</span>
+                  </label>
+                  {/* Existing IPs list */}
+                  {allowedIpAddresses.map((ip, idx) => (
+                    <div key={idx} className={`flex items-center gap-2 mb-1.5 p-2 rounded-lg ${isDark ? 'bg-[#111113]' : 'bg-white'}`}>
+                      <Server className={`w-3.5 h-3.5 flex-shrink-0 ${isDark ? 'text-gray-500' : 'text-gray-400'}`} />
+                      <span className={`flex-1 text-xs font-mono ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>{ip}</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const updated = [...allowedIpAddresses];
+                          // Move up
+                          if (idx > 0) { [updated[idx], updated[idx-1]] = [updated[idx-1], updated[idx]]; }
+                          setAllowedIpAddresses(updated);
+                        }}
+                        className={`p-1 rounded ${isDark ? 'text-gray-600 hover:text-gray-400' : 'text-gray-300 hover:text-gray-500'}`}
+                        title="ترتيب"
+                      >↑</button>
+                      <button
+                        type="button"
+                        onClick={() => setAllowedIpAddresses(allowedIpAddresses.filter((_, i) => i !== idx))}
+                        className={`p-1 rounded ${isDark ? 'text-red-500/60 hover:text-red-400' : 'text-red-300 hover:text-red-500'}`}
+                        title="حذف"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                  {/* Add new IP */}
+                  <div className="flex gap-2 mt-2">
+                    <input
+                      type="text"
+                      value={newIpAddress}
+                      onChange={(e) => setNewIpAddress(e.target.value)}
+                      placeholder="2436.sipgw.exacall.com"
+                      dir="ltr"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && newIpAddress.trim()) {
+                          setAllowedIpAddresses([...allowedIpAddresses, newIpAddress.trim()]);
+                          setNewIpAddress('');
+                        }
+                      }}
+                      className={`flex-1 px-3 py-2 rounded-lg border text-xs font-mono ${
+                        isDark ? 'bg-[#111113] border-[#1f1f23] text-gray-300 placeholder:text-gray-600' : 'bg-white border-gray-200 text-gray-700 placeholder:text-gray-400'
+                      }`}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (newIpAddress.trim()) {
+                          setAllowedIpAddresses([...allowedIpAddresses, newIpAddress.trim()]);
+                          setNewIpAddress('');
+                        }
+                      }}
+                      className={`px-3 py-2 rounded-lg text-xs font-medium ${
+                        isDark ? 'bg-[#1a1a1d] text-gray-300 hover:text-white border border-[#1f1f23]' : 'bg-white text-gray-700 hover:text-gray-900 border border-gray-200'
+                      }`}
+                    >
+                      Add to allowed IP addresses
+                    </button>
+                  </div>
+                  <p className={`text-xs mt-1 ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>
+                    The IP addresses that are allowed to authorize calls from your SIP trunk.
+                  </p>
+                </div>
+              )}
+
+              {/* Country */}
+              <div>
+                <label className={`block text-xs font-medium mb-1 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                  Country <span className="text-red-400">*</span>
+                </label>
+                <select
+                  value={country}
+                  onChange={(e) => setCountry(e.target.value)}
+                  className={`w-full px-3 py-2 rounded-lg border text-sm ${
+                    isDark ? 'bg-[#111113] border-[#1f1f23] text-white' : 'bg-white border-gray-200 text-gray-900'
+                  }`}
+                >
+                  {COUNTRIES.map(c => (
+                    <option key={c.code} value={c.code}>{c.flag} {c.name} ({c.code})</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* ═══ Agent Selection ═══ */}
             <div>
               <label className={`block text-sm font-medium mb-1.5 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>ربط بمساعد</label>
               <select
@@ -718,14 +1024,14 @@ function AddNumberModal({ isDark, agents, providers, onClose, onSuccess }) {
               <InactiveAgentWarning agentId={selectedAgent} agents={agents} isDark={isDark} />
             </div>
 
-            {/* Add button */}
+            {/* ═══ Submit ═══ */}
             <button
               onClick={handleAddCustom}
               disabled={!customPhone || creating}
               className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-gradient-to-l from-teal-500 to-cyan-500 hover:from-teal-400 hover:to-cyan-400 text-white font-bold text-sm disabled:opacity-50"
             >
               {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-              إضافة الرقم
+              Submit
             </button>
           </div>
         )}

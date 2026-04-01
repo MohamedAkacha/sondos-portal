@@ -41,8 +41,9 @@ logger.setLevel(logging.INFO)
 BACKEND_URL = os.getenv("SONDOS_BACKEND_URL", "").rstrip("/")
 AGENT_SECRET = os.getenv("SONDOS_AGENT_SECRET", "")
 
-# ── Outbound no-answer timeout ──
-OUTBOUND_NO_ANSWER_TIMEOUT = 30  # seconds
+# ── Outbound timeouts ──
+OUTBOUND_RING_TIMEOUT = 60    # seconds — wait for SIP participant to join (ringing)
+OUTBOUND_SPEECH_TIMEOUT = 30  # seconds — wait for customer to speak after answering
 
 
 # ══════════════════════════════════════════════════════
@@ -360,17 +361,45 @@ async def entrypoint(ctx: JobContext):
         f"TTS: {config['ttsProvider']}/{config['ttsModel']}/{config['ttsVoice']}"
     )
 
-    # ── Outbound: no-answer timeout ──
-    # If the customer doesn't speak within 30s, hang up
+    # ── Outbound: two-phase timeout ──
+    # Phase 1: Wait for SIP participant to join (ringing → answer)
+    # Phase 2: Wait for customer to speak after answering
     if is_outbound:
+        sip_participant_joined = asyncio.Event()
+
+        # Listen for SIP participant joining the room
+        @ctx.room.on("participant_connected")
+        def on_participant_connected(participant):
+            identity = participant.identity or ""
+            # SIP participants have identities like "caller-966501234567" or "sip-..."
+            if identity.startswith("caller-") or identity.startswith("sip") or "sip" in identity.lower():
+                logger.info(f"📞 SIP participant joined: {identity} → {ctx.room.name}")
+                sip_participant_joined.set()
+
         async def outbound_timeout_check():
-            await asyncio.sleep(OUTBOUND_NO_ANSWER_TIMEOUT)
-            if not user_has_spoken:
-                logger.info(f"⏰ Outbound timeout — no answer in {OUTBOUND_NO_ANSWER_TIMEOUT}s → {ctx.room.name}")
-                add_transcript("system", f"[المكالمة أُغلقت — لم يرد العميل خلال {OUTBOUND_NO_ANSWER_TIMEOUT} ثانية]")
+            # ── Phase 1: Wait for SIP participant to join (customer answers the phone) ──
+            try:
+                await asyncio.wait_for(sip_participant_joined.wait(), timeout=OUTBOUND_RING_TIMEOUT)
+                logger.info(f"✅ Customer answered — starting speech timer ({OUTBOUND_SPEECH_TIMEOUT}s) → {ctx.room.name}")
+            except asyncio.TimeoutError:
+                # Phone rang but nobody answered within 60s
+                logger.info(f"⏰ Outbound ring timeout — no answer in {OUTBOUND_RING_TIMEOUT}s → {ctx.room.name}")
+                add_transcript("system", f"[المكالمة أُغلقت — لم يرد العميل خلال {OUTBOUND_RING_TIMEOUT} ثانية]")
                 await report_call_result(ctx.room.name, "no_answer")
                 await save_transcript_to_backend(ctx.room.name, transcript)
-                # Disconnect from room
+                try:
+                    await ctx.room.disconnect()
+                except Exception:
+                    pass
+                return
+
+            # ── Phase 2: Wait for customer to speak after answering ──
+            await asyncio.sleep(OUTBOUND_SPEECH_TIMEOUT)
+            if not user_has_spoken:
+                logger.info(f"⏰ Outbound speech timeout — customer answered but didn't speak in {OUTBOUND_SPEECH_TIMEOUT}s → {ctx.room.name}")
+                add_transcript("system", f"[المكالمة أُغلقت — العميل ردّ لكن لم يتحدث خلال {OUTBOUND_SPEECH_TIMEOUT} ثانية]")
+                await report_call_result(ctx.room.name, "no_answer")
+                await save_transcript_to_backend(ctx.room.name, transcript)
                 try:
                     await ctx.room.disconnect()
                 except Exception:

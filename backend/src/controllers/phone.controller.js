@@ -39,6 +39,11 @@ exports.listPhones = async (req, res) => {
         provider: p.provider,
         status: p.status,
         statusMessage: p.statusMessage,
+        // SIP trunk IDs + URI
+        sipTrunkId: p.sipTrunkId || '',
+        sipOutboundTrunkId: p.sipOutboundTrunkId || '',
+        sipDispatchRuleId: p.sipDispatchRuleId || '',
+        sipInboundUri: p.sipInboundUri || '',
         agent: p.agentId ? { id: p.agentId._id, name: p.agentId.name, avatar: p.agentId.avatar, status: p.agentId.status } : null,
         settings: p.settings,
         monthlyPrice: p.monthlyPrice,
@@ -87,6 +92,70 @@ exports.getProviders = async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ success: false, message: 'فشل جلب المزوّدين' });
+  }
+};
+
+// ══════════════════════════════════════════════════════
+// GET /api/phones/sip-info — Get LiveKit SIP URI & Outbound IPs
+// ──────────────────────────────────────────────────────
+// Returns the SIP inbound URI and outbound IP addresses
+// User needs these to configure their SIP provider (e.g. Exacall)
+// Matches AutoCalls fields: "Our SIP address" + "Fixed outbound IP"
+// ══════════════════════════════════════════════════════
+exports.getSipInfo = async (req, res) => {
+  try {
+    const livekitUrl = process.env.LIVEKIT_URL || '';
+
+    if (!livekitUrl) {
+      return res.status(500).json({
+        success: false,
+        message: 'LiveKit غير مُعد — تواصل مع المدير',
+      });
+    }
+
+    // ── Extract project ID from LIVEKIT_URL ──
+    // e.g. "wss://4gz4kilfp9u.livekit.cloud" → "4gz4kilfp9u"
+    let projectId = '';
+    try {
+      const urlStr = livekitUrl.replace('wss://', 'https://').replace('ws://', 'http://');
+      const parsed = new URL(urlStr);
+      const hostParts = parsed.hostname.split('.');
+      if (hostParts.length >= 3) {
+        projectId = hostParts[0];
+      }
+    } catch (e) {
+      console.error('[SIP Info] Failed to parse LIVEKIT_URL:', e.message);
+    }
+
+    // ── Build SIP Inbound URI ──
+    const sipInboundUri = projectId ? `${projectId}.sip.livekit.cloud` : '';
+
+    // ── Get Outbound IPs ──
+    // LiveKit Cloud SIP outbound IPs (may vary by region)
+    // These are the IPs that Exacall needs to whitelist for outbound calls
+    let outboundIps = [];
+    let outboundIpNote = '';
+
+    if (livekitSip.isConfigured()) {
+      // Try to get outbound IPs from LiveKit (if available)
+      // For now, guide user to check LiveKit Dashboard
+      outboundIpNote = 'تحقق من LiveKit Dashboard → SIP → Outbound IPs لمعرفة عناوين IP الصادرة';
+    }
+
+    console.log(`[SIP Info] URI: ${sipInboundUri} | Project: ${projectId}`);
+
+    res.json({
+      success: true,
+      sipInboundUri,
+      projectId,
+      livekitUrl,
+      outboundIps,
+      outboundIpNote,
+      livekitConfigured: livekitSip.isConfigured(),
+    });
+  } catch (error) {
+    console.error('[SIP Info]', error.message);
+    res.status(500).json({ success: false, message: 'فشل جلب معلومات SIP' });
   }
 };
 
@@ -226,7 +295,15 @@ exports.addCustomNumber = async (req, res) => {
       });
     }
 
-    const { phoneNumber, friendlyName, agentId, country, sipServer, sipUsername, sipPassword, sipTransport } = req.body;
+    const {
+      phoneNumber, friendlyName, agentId, country,
+      // ── Authentication ──
+      sipServer, sipPort, sipUsername, sipPassword, sipTransport,
+      // ── Outbound Settings (AutoCalls fields) ──
+      outboundFixedIp, outboundNumberFormat,
+      // ── Inbound Settings (AutoCalls fields) ──
+      inboundAuthType, allowedIpAddresses,
+    } = req.body;
 
     if (!phoneNumber) {
       return res.status(400).json({ success: false, message: 'رقم الهاتف مطلوب' });
@@ -247,8 +324,38 @@ exports.addCustomNumber = async (req, res) => {
       return res.status(409).json({ success: false, message: 'هذا الرقم مسجل مسبقاً' });
     }
 
-    // ── Create LiveKit SIP Trunk ──
-    let sipResult = { sipTrunkId: '', sipDispatchRuleId: '' };
+    // ── Build SIP address with port (e.g. "2436.sipgw.exacall.com:5760") ──
+    const sipServerClean = (sipServer || '').split(':')[0]; // Remove port if included
+    const sipPortNum = sipPort || 5060;
+    const sipAddressWithPort = sipServerClean ? `${sipServerClean}:${sipPortNum}` : '';
+
+    // ── Build allowed addresses list ──
+    // Use user-provided list (like AutoCalls), or fall back to SIP server address
+    const resolvedAllowedAddresses = (allowedIpAddresses && allowedIpAddresses.length > 0)
+      ? allowedIpAddresses
+      : (sipServerClean ? [sipServerClean] : []);
+
+    // ── Determine inbound auth config ──
+    const authType = inboundAuthType || 'ip';
+    const inboundAuthUsername = (authType === 'username_password') ? (sipUsername || '') : '';
+    const inboundAuthPassword = (authType === 'username_password') ? (sipPassword || '') : '';
+
+    // ── Build LiveKit SIP Inbound URI ──
+    let sipInboundUri = '';
+    try {
+      const livekitUrl = process.env.LIVEKIT_URL || '';
+      const urlStr = livekitUrl.replace('wss://', 'https://').replace('ws://', 'http://');
+      const parsed = new URL(urlStr);
+      const hostParts = parsed.hostname.split('.');
+      if (hostParts.length >= 3) {
+        sipInboundUri = `${hostParts[0]}.sip.livekit.cloud`;
+      }
+    } catch (e) {
+      console.error('[Phone Custom] Failed to build SIP URI:', e.message);
+    }
+
+    // ── Create LiveKit SIP Trunks (Inbound + Outbound) ──
+    let sipResult = { sipTrunkId: '', sipDispatchRuleId: '', sipOutboundTrunkId: '' };
     if (agent && livekitSip.isConfigured()) {
       try {
         sipResult = await livekitSip.setupPhoneNumber({
@@ -256,7 +363,12 @@ exports.addCustomNumber = async (req, res) => {
           agentName: agent.name,
           agentConfig: agent.toLiveKitConfig(),
           userId: req.user._id.toString(),
-          allowedAddresses: sipServer ? [sipServer] : [],
+          // ── Direction: create both trunks if agent supports outbound ──
+          direction: agent.callDirection || 'inbound',
+          // ── Outbound SIP address (for Outbound Trunk) ──
+          sipAddress: sipAddressWithPort,
+          // ── Inbound: allowed addresses or auth ──
+          allowedAddresses: (authType === 'ip') ? resolvedAllowedAddresses : [],
           authUsername: sipUsername || '',
           authPassword: sipPassword || '',
         });
@@ -273,18 +385,30 @@ exports.addCustomNumber = async (req, res) => {
       country: country || 'SA',
       provider: 'custom',
       customSip: {
-        sipServer: sipServer || '',
+        // ── Authentication ──
+        sipServer: sipServerClean,
+        sipPort: sipPortNum,
         sipUsername: sipUsername || '',
         sipPassword: sipPassword || '',
         sipTransport: sipTransport || 'udp',
+        // ── Outbound Settings ──
+        outboundFixedIp: outboundFixedIp || false,
+        outboundNumberFormat: outboundNumberFormat || 'international_no_plus',
+        // ── Inbound Settings ──
+        inboundAuthType: authType,
+        allowedIpAddresses: resolvedAllowedAddresses,
       },
-      sipTrunkId: sipResult.sipTrunkId,
-      sipDispatchRuleId: sipResult.sipDispatchRuleId,
+      // ── LiveKit SIP IDs ──
+      sipTrunkId: sipResult.sipTrunkId || '',
+      sipDispatchRuleId: sipResult.sipDispatchRuleId || '',
+      sipOutboundTrunkId: sipResult.sipOutboundTrunkId || '',
+      sipInboundUri,
+      // ── Status ──
       status: sipResult.sipTrunkId ? 'active' : 'pending',
       statusMessage: sipResult.sipTrunkId ? '' : 'أدخل بيانات SIP وأعد المحاولة',
     });
 
-    console.log(`[Phone Custom Added] ${phoneNumber} by ${req.user.email}`);
+    console.log(`[Phone Custom Added] ${phoneNumber} by ${req.user.email} | Inbound: ${!!sipResult.sipTrunkId} | Outbound: ${!!sipResult.sipOutboundTrunkId} | URI: ${sipInboundUri}`);
 
     res.status(201).json({
       success: true,
@@ -419,17 +543,38 @@ exports.setupSip = async (req, res) => {
       try { await livekitSip.deleteSipTrunk(phone.sipOutboundTrunkId); } catch (e) {}
     }
 
-    // Determine SIP address for outbound
+    // ── Determine SIP address for outbound (with port) ──
     let sipAddress = '';
     if (phone.provider === 'custom' && phone.customSip?.sipServer) {
-      sipAddress = phone.customSip.sipServer;
+      const server = phone.customSip.sipServer;
+      const port = phone.customSip.sipPort || 5060;
+      sipAddress = `${server}:${port}`;
     } else if (phone.provider === 'twilio') {
       sipAddress = `${phone.phoneNumber.replace('+', '')}@${process.env.TWILIO_ACCOUNT_SID}.sip.twilio.com`;
     } else if (phone.provider === 'telnyx') {
       sipAddress = `${phone.phoneNumber.replace('+', '')}@sip.telnyx.com`;
     }
 
-    // Create new SIP setup (direction-aware)
+    // ── Determine allowed addresses from saved data (not auto-extracted) ──
+    const authType = phone.customSip?.inboundAuthType || 'ip';
+    let allowedAddresses = [];
+    if (phone.provider === 'custom') {
+      if (authType === 'ip') {
+        // Use user-provided list, or fall back to SIP server
+        allowedAddresses = (phone.customSip?.allowedIpAddresses?.length > 0)
+          ? phone.customSip.allowedIpAddresses
+          : (phone.customSip?.sipServer ? [phone.customSip.sipServer.split(':')[0]] : []);
+      }
+      // If username_password, no allowed addresses needed — auth handles it
+    }
+
+    // ── Determine inbound auth credentials ──
+    const inboundAuthUsername = (authType === 'username_password' && phone.provider === 'custom')
+      ? (phone.customSip?.sipUsername || '') : '';
+    const inboundAuthPassword = (authType === 'username_password' && phone.provider === 'custom')
+      ? phone.getSipPassword() : '';
+
+    // ── Create new SIP setup (direction-aware) ──
     const sipResult = await livekitSip.setupPhoneNumber({
       phoneNumber: phone.phoneNumber,
       agentName: agent.name,
@@ -437,23 +582,39 @@ exports.setupSip = async (req, res) => {
       userId: phone.userId.toString(),
       direction: agent.callDirection || 'inbound',
       sipAddress,
-      allowedAddresses: phone.customSip?.sipServer ? [phone.customSip.sipServer.split(':')[0]] : [],
+      allowedAddresses,
       authUsername: phone.provider === 'custom' ? (phone.customSip?.sipUsername || '') : '',
       authPassword: phone.provider === 'custom' ? phone.getSipPassword() : '',
     });
 
+    // ── Build LiveKit SIP Inbound URI ──
+    let sipInboundUri = '';
+    try {
+      const livekitUrl = process.env.LIVEKIT_URL || '';
+      const urlStr = livekitUrl.replace('wss://', 'https://').replace('ws://', 'http://');
+      const parsed = new URL(urlStr);
+      const hostParts = parsed.hostname.split('.');
+      if (hostParts.length >= 3) {
+        sipInboundUri = `${hostParts[0]}.sip.livekit.cloud`;
+      }
+    } catch (e) {
+      console.error('[Phone SIP Setup] Failed to build SIP URI:', e.message);
+    }
+
+    // ── Save results ──
     phone.sipTrunkId = sipResult.sipTrunkId || '';
     phone.sipDispatchRuleId = sipResult.sipDispatchRuleId || '';
     phone.sipOutboundTrunkId = sipResult.sipOutboundTrunkId || '';
+    phone.sipInboundUri = sipInboundUri;
     phone.status = 'active';
     phone.statusMessage = '';
     await phone.save();
 
-    console.log(`[Phone SIP Setup] ${phone.phoneNumber} → trunk: ${sipResult.sipTrunkId}`);
+    console.log(`[Phone SIP Setup] ${phone.phoneNumber} → inbound: ${sipResult.sipTrunkId || 'none'} | outbound: ${sipResult.sipOutboundTrunkId || 'none'} | URI: ${sipInboundUri}`);
 
     res.json({
       success: true,
-      message: 'تم إعداد SIP بنجاح — الرقم جاهز لاستقبال المكالمات',
+      message: 'تم إعداد SIP بنجاح — الرقم جاهز لاستقبال وإجراء المكالمات',
       phone: phone.toPublicJSON(),
     });
   } catch (error) {
@@ -703,24 +864,59 @@ exports.initiateOutbound = async (req, res) => {
       return res.status(400).json({ success: false, message: 'المساعد المربوط غير موجود' });
     }
 
+    // ── Verify agent supports outbound calls ──
+    if (agent.callDirection === 'inbound') {
+      return res.status(400).json({
+        success: false,
+        message: 'المساعد لا يدعم المكالمات الصادرة — غيّر اتجاه المكالمات إلى "صادرة" أو "واردة وصادرة"',
+      });
+    }
+
     const agentConfig = agent.toLiveKitConfig();
     const outbound = agent.outboundSettings || {};
     const userId = req.user._id.toString();
     const roomName = `sondos-out-${userId.slice(-6)}-${Date.now().toString(36)}`;
 
-    // ── Step 1: Determine outbound SIP address based on provider ──
+    // ── Step 1: Format destination number based on outboundNumberFormat ──
+    const numberFormat = phone.customSip?.outboundNumberFormat || 'international_no_plus';
+    let formattedDestination = destination; // Default: keep as-is (+966501234567)
+
+    if (numberFormat === 'international_no_plus') {
+      // +966501234567 → 966501234567
+      formattedDestination = destination.replace('+', '');
+    } else if (numberFormat === 'international_plus') {
+      // +966501234567 → +966501234567 (keep as-is)
+      formattedDestination = destination;
+    } else if (numberFormat === 'national') {
+      // +966501234567 → 0501234567 (remove country code, add 0)
+      // Handle Saudi (+966) and other country codes
+      const withoutPlus = destination.replace('+', '');
+      if (withoutPlus.startsWith('966')) {
+        formattedDestination = '0' + withoutPlus.slice(3);
+      } else if (withoutPlus.startsWith('1') && withoutPlus.length === 11) {
+        // US/Canada: +1XXXXXXXXXX → XXXXXXXXXX
+        formattedDestination = withoutPlus.slice(1);
+      } else {
+        // Generic: just remove +
+        formattedDestination = withoutPlus;
+      }
+    }
+
+    // ── Step 2: Determine outbound SIP address based on provider ──
     let sipAddress;
     if (phone.provider === 'twilio') {
       sipAddress = `${phone.phoneNumber.replace('+', '')}@${process.env.TWILIO_ACCOUNT_SID}.sip.twilio.com`;
     } else if (phone.provider === 'telnyx') {
       sipAddress = `${phone.phoneNumber.replace('+', '')}@sip.telnyx.com`;
     } else if (phone.provider === 'custom' && phone.customSip?.sipServer) {
-      sipAddress = `${phone.phoneNumber.replace('+', '')}@${phone.customSip.sipServer}`;
+      const server = phone.customSip.sipServer;
+      const port = phone.customSip.sipPort || 5060;
+      sipAddress = `${server}:${port}`;
     } else {
       return res.status(400).json({ success: false, message: 'لا يمكن تحديد عنوان SIP للمكالمات الصادرة' });
     }
 
-    // ── Step 2: Create or reuse outbound trunk ──
+    // ── Step 3: Create or reuse outbound trunk ──
     let outboundTrunkId = phone.sipOutboundTrunkId;
     if (!outboundTrunkId) {
       try {
@@ -741,7 +937,7 @@ exports.initiateOutbound = async (req, res) => {
       }
     }
 
-    // ── Step 3: Create room with outbound-aware metadata ──
+    // ── Step 4: Create room with outbound-aware metadata ──
     const { RoomServiceClient } = require('livekit-server-sdk');
     const httpUrl = process.env.LIVEKIT_URL.replace('wss://', 'https://').replace('ws://', 'http://');
     const roomService = new RoomServiceClient(httpUrl, process.env.LIVEKIT_API_KEY, process.env.LIVEKIT_API_SECRET);
@@ -766,16 +962,19 @@ exports.initiateOutbound = async (req, res) => {
       }),
     });
 
-    // ── Step 4: Dial out via SIP ──
+    // ── Step 5: Dial out via SIP (using formatted number) ──
+    const sipHost = sipAddress.includes('@') ? sipAddress.split('@')[1] : sipAddress;
+    const sipCallTo = `sip:${formattedDestination}@${sipHost}`;
+
     const sipResult = await livekitSip.createSipParticipant({
       sipTrunkId: outboundTrunkId,
-      sipCallTo: `sip:${destination.replace('+', '')}@${sipAddress.split('@')[1]}`,
+      sipCallTo,
       roomName,
       participantIdentity: `caller-${destination.replace('+', '')}`,
       participantName: destination,
     });
 
-    // ── Step 5: Create call record with direction + destination ──
+    // ── Step 6: Create call record with direction + destination ──
     const LiveKitCall = require('../models/LiveKitCall');
     await LiveKitCall.create({
       roomName,
@@ -791,10 +990,12 @@ exports.initiateOutbound = async (req, res) => {
       metadata: {
         sipCallId: sipResult.sipCallId,
         objective: outbound.objective || '',
+        formattedDestination,
+        numberFormat,
       },
     });
 
-    console.log(`[Outbound Call] ${phone.phoneNumber} → ${destination} | Room: ${roomName} | Agent: ${agent.name} | Objective: ${outbound.objective || 'none'}`);
+    console.log(`[Outbound Call] ${phone.phoneNumber} → ${destination} (formatted: ${formattedDestination}) | Room: ${roomName} | Agent: ${agent.name} | Format: ${numberFormat}`);
 
     res.json({
       success: true,
