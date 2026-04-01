@@ -862,7 +862,7 @@ function AddNumberModal({ isDark, agents, providers, onClose, onSuccess }) {
                 <label className={`block text-xs font-medium mb-1 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Our SIP address</label>
                 <div className={`flex items-center gap-2 p-2.5 rounded-lg ${isDark ? 'bg-[#111113]' : 'bg-white'}`}>
                   <p className={`flex-1 text-sm font-mono font-semibold ${isDark ? 'text-teal-400' : 'text-teal-600'}`}>
-                    {sipInfo?.sipInboundUri || 'جاري التحميل...'}
+                    {'4gz4kilfp9u.sip.livekit.cloud'}
                   </p>
                   <button
                     type="button"
