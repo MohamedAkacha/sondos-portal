@@ -10,11 +10,11 @@ import { useSearchParams, useNavigate } from 'react-router-dom';
 import {
   Phone, PhoneOff, Mic, MicOff, Settings2, X,
   ChevronRight, Bot, Trash2, AlertCircle, Sparkles,
-  MessageSquareText, WifiOff,
+  MessageSquareText, WifiOff, Loader2, Check, Save,
 } from 'lucide-react';
 import { useTheme } from '@/hooks/useTheme';
 import { getLivekitToken, saveLivekitTranscript } from '@/services/api/livekitAPI';
-import { getAgent } from '@/services/api/agentAPI';
+import { getAgent, updateAgent } from '@/services/api/agentAPI';
 
 const CALL_STATE = {
   IDLE: 'idle', CONNECTING: 'connecting', CONNECTED: 'connected',
@@ -40,6 +40,9 @@ export default function TestAgentPage() {
   const [isMuted, setIsMuted] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [transcriptOpen, setTranscriptOpen] = useState(true);
+  const [configDirty, setConfigDirty] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [savedMsg, setSavedMsg] = useState('');
 
   const [agentConfig, setAgentConfig] = useState({
     sttProvider: 'deepgram', sttModel: 'nova-2', sttLanguage: 'ar',
@@ -78,10 +81,40 @@ export default function TestAgentPage() {
             systemPrompt: a.systemPrompt || '', greeting: a.greeting || 'أهلاً وسهلاً',
           });
           setAgentMode(true); setAgentName(a.name);
+          setConfigDirty(false);
         }
       } catch (err) { console.error('Failed to load agent:', err); }
     })();
   }, [agentIdParam]);
+
+  // ── Track config changes ──
+  const updateConfig = (updater) => {
+    setAgentConfig(updater);
+    setConfigDirty(true);
+    setSavedMsg('');
+  };
+
+  // ── Save modified config back to Agent in DB ──
+  const handleSaveToAgent = async () => {
+    if (!agentIdParam || !agentMode) return;
+    setSaving(true); setSavedMsg('');
+    try {
+      await updateAgent(agentIdParam, {
+        stt: { provider: agentConfig.sttProvider, model: agentConfig.sttModel, language: agentConfig.sttLanguage },
+        llm: { model: agentConfig.llmModel, temperature: agentConfig.llmTemperature },
+        voice: { provider: agentConfig.ttsProvider, model: agentConfig.ttsModel, voiceId: agentConfig.ttsVoice },
+        systemPrompt: agentConfig.systemPrompt,
+        useCustomPrompt: true,
+        greeting: agentConfig.greeting,
+      });
+      setConfigDirty(false);
+      setSavedMsg('تم الحفظ ✓');
+      setTimeout(() => setSavedMsg(''), 3000);
+    } catch (err) {
+      console.error('Save failed:', err);
+      setSavedMsg('فشل الحفظ ✗');
+    } finally { setSaving(false); }
+  };
 
   useEffect(() => { transcriptRef.current = transcript; }, [transcript]);
   useEffect(() => () => { disconnect(); }, []);
@@ -302,48 +335,69 @@ export default function TestAgentPage() {
             </div>
             <div className="p-5 space-y-5">
               <SG label="تحويل الكلام لنص" isDark={isDark}>
-                <SS value={agentConfig.sttProvider} isDark={isDark} onChange={v => { const m={deepgram:'nova-2',openai:'whisper-1',elevenlabs:'scribe_v1'}; setAgentConfig(c=>({...c,sttProvider:v,sttModel:m[v]||'nova-2'})); }}
+                <SS value={agentConfig.sttProvider} isDark={isDark} onChange={v => { const m={deepgram:'nova-2',openai:'whisper-1',elevenlabs:'scribe_v1'}; updateConfig(c=>({...c,sttProvider:v,sttModel:m[v]||'nova-2'})); }}
                   options={[{v:'deepgram',l:'Deepgram Nova-2'},{v:'elevenlabs',l:'ElevenLabs Scribe'},{v:'openai',l:'OpenAI Whisper'}]} />
               </SG>
               <SG label="لغة التعرف" isDark={isDark}>
-                <SS value={agentConfig.sttLanguage} isDark={isDark} onChange={v=>setAgentConfig(c=>({...c,sttLanguage:v}))} options={[{v:'ar',l:'العربية'},{v:'en',l:'English'},{v:'multi',l:'تلقائي'}]} />
+                <SS value={agentConfig.sttLanguage} isDark={isDark} onChange={v=>updateConfig(c=>({...c,sttLanguage:v}))} options={[{v:'ar',l:'العربية'},{v:'en',l:'English'},{v:'multi',l:'تلقائي'}]} />
               </SG>
               <SG label="نموذج الذكاء" isDark={isDark}>
-                <SS value={agentConfig.llmModel} isDark={isDark} onChange={v=>setAgentConfig(c=>({...c,llmModel:v}))} options={[{v:'gpt-5.4',l:'GPT-5.4 (الأذكى)'},{v:'gpt-5.4-mini',l:'GPT-5.4 Mini ⭐'},{v:'gpt-5.4-nano',l:'GPT-5.4 Nano'},{v:'gpt-4o',l:'GPT-4o'},{v:'gpt-4o-mini',l:'GPT-4o Mini'}]} />
+                <SS value={agentConfig.llmModel} isDark={isDark} onChange={v=>updateConfig(c=>({...c,llmModel:v}))} options={[{v:'gpt-5.4',l:'GPT-5.4 (الأذكى)'},{v:'gpt-5.4-mini',l:'GPT-5.4 Mini ⭐'},{v:'gpt-5.4-nano',l:'GPT-5.4 Nano'},{v:'gpt-4o',l:'GPT-4o'},{v:'gpt-4o-mini',l:'GPT-4o Mini'}]} />
               </SG>
               <SG label={`درجة الإبداع — ${agentConfig.llmTemperature}`} isDark={isDark}>
-                <input type="range" min="0" max="1" step="0.1" value={agentConfig.llmTemperature} onChange={e=>setAgentConfig(c=>({...c,llmTemperature:parseFloat(e.target.value)}))} className="w-full accent-teal-500 h-1" />
+                <input type="range" min="0" max="1" step="0.1" value={agentConfig.llmTemperature} onChange={e=>updateConfig(c=>({...c,llmTemperature:parseFloat(e.target.value)}))} className="w-full accent-teal-500 h-1" />
                 <div className={`flex justify-between text-[10px] mt-1 ${isDark?'text-gray-600':'text-gray-400'}`}><span>دقيق</span><span>إبداعي</span></div>
               </SG>
               <SG label="مزوّد الصوت" isDark={isDark}>
-                <SS value={agentConfig.ttsProvider} isDark={isDark} onChange={v=>{const d={openai:{ttsModel:'tts-1',ttsVoice:'nova'},elevenlabs:{ttsModel:'eleven_turbo_v2_5',ttsVoice:'21m00Tcm4TlvDq8ikWAM'}};setAgentConfig(c=>({...c,ttsProvider:v,...d[v]}));}}
+                <SS value={agentConfig.ttsProvider} isDark={isDark} onChange={v=>{const d={openai:{ttsModel:'tts-1',ttsVoice:'nova'},elevenlabs:{ttsModel:'eleven_turbo_v2_5',ttsVoice:'21m00Tcm4TlvDq8ikWAM'}};updateConfig(c=>({...c,ttsProvider:v,...d[v]}));}}
                   options={[{v:'openai',l:'OpenAI TTS'},{v:'elevenlabs',l:'ElevenLabs ⭐'}]} />
               </SG>
               <SG label="الصوت" isDark={isDark}>
-                <SS value={agentConfig.ttsVoice} isDark={isDark} onChange={v=>setAgentConfig(c=>({...c,ttsVoice:v}))}
+                <SS value={agentConfig.ttsVoice} isDark={isDark} onChange={v=>updateConfig(c=>({...c,ttsVoice:v}))}
                   options={agentConfig.ttsProvider==='elevenlabs'?[{v:'21m00Tcm4TlvDq8ikWAM',l:'Rachel'},{v:'pNInz6obpgDQGcFmaJgB',l:'Adam'},{v:'AZnzlk1XvdvUeBnXmlld',l:'Domi'},{v:'TxGEqnHWrfWFTfGW9XjX',l:'Josh'},{v:'EXAVITQu4vr4xnSDxMaL',l:'Bella'}]:[{v:'nova',l:'Nova (أنثى)'},{v:'alloy',l:'Alloy'},{v:'echo',l:'Echo (ذكر)'},{v:'shimmer',l:'Shimmer'}]} />
               </SG>
               <SG label="جودة الصوت" isDark={isDark}>
-                <SS value={agentConfig.ttsModel} isDark={isDark} onChange={v=>setAgentConfig(c=>({...c,ttsModel:v}))}
+                <SS value={agentConfig.ttsModel} isDark={isDark} onChange={v=>updateConfig(c=>({...c,ttsModel:v}))}
                   options={agentConfig.ttsProvider==='elevenlabs'?[{v:'eleven_turbo_v2_5',l:'Turbo v2.5 ⭐'},{v:'eleven_multilingual_v2',l:'Multilingual v2'},{v:'eleven_flash_v2_5',l:'Flash v2.5'}]:[{v:'tts-1',l:'عادي (أسرع)'},{v:'tts-1-hd',l:'HD'}]} />
               </SG>
               <div className={`pt-4 border-t ${isDark?'border-[#1f1f23]':'border-gray-200'}`}>
                 <SG label="شخصية الوكيل *" isDark={isDark}>
-                  <textarea rows={5} value={agentConfig.systemPrompt} onChange={e=>setAgentConfig(c=>({...c,systemPrompt:e.target.value}))} placeholder="أنت مساعدة ذكية تعمل في..."
+                  <textarea rows={5} value={agentConfig.systemPrompt} onChange={e=>updateConfig(c=>({...c,systemPrompt:e.target.value}))} placeholder="أنت مساعدة ذكية تعمل في..."
                     className={`w-full rounded-xl px-3.5 py-2.5 text-sm resize-none leading-relaxed focus:outline-none focus:ring-2 focus:ring-teal-500/30 ${isDark?'bg-[#0a0a0b] border border-[#1f1f23] text-white placeholder:text-gray-600':'bg-gray-50 border border-gray-200 text-gray-900 placeholder:text-gray-400'}`} dir="rtl" />
                 </SG>
               </div>
               <SG label="رسالة الترحيب *" isDark={isDark}>
-                <input type="text" value={agentConfig.greeting} onChange={e=>setAgentConfig(c=>({...c,greeting:e.target.value}))} placeholder="أهلاً وسهلاً، كيف أقدر أساعدك؟"
+                <input type="text" value={agentConfig.greeting} onChange={e=>updateConfig(c=>({...c,greeting:e.target.value}))} placeholder="أهلاً وسهلاً، كيف أقدر أساعدك؟"
                   className={`w-full rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30 ${isDark?'bg-[#0a0a0b] border border-[#1f1f23] text-white placeholder:text-gray-600':'bg-gray-50 border border-gray-200 text-gray-900 placeholder:text-gray-400'}`} dir="rtl" />
               </SG>
               <div className={`flex items-start gap-2 p-3 rounded-xl ${isDark?'bg-teal-500/5 border border-teal-500/15':'bg-teal-50 border border-teal-200'}`}>
                 <Sparkles className="w-4 h-4 text-teal-400 shrink-0 mt-0.5" />
-                <p className={`text-xs leading-relaxed ${isDark?'text-teal-400/80':'text-teal-700'}`}>الإعدادات تنتقل مباشرة للوكيل عند بدء المكالمة.</p>
+                <p className={`text-xs leading-relaxed ${isDark?'text-teal-400/80':'text-teal-700'}`}>
+                  {configDirty ? 'عدّلت الإعدادات — ستُستخدم في المكالمة القادمة. اضغط "حفظ على المساعد" لحفظها نهائياً.' : 'الإعدادات تنتقل مباشرة للوكيل عند بدء المكالمة.'}
+                </p>
               </div>
+              {/* ── Save to Agent button (only in agent mode + dirty) ── */}
+              {agentMode && configDirty && (
+                <button onClick={handleSaveToAgent} disabled={saving}
+                  className={`w-full py-3 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-colors ${
+                    saving ? 'bg-amber-500/20 text-amber-400 cursor-wait' : 'bg-amber-500 hover:bg-amber-400 text-white'
+                  }`}>
+                  {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                  {saving ? 'جاري الحفظ...' : 'حفظ على المساعد'}
+                </button>
+              )}
+              {/* ── Saved confirmation ── */}
+              {savedMsg && (
+                <div className={`text-center text-sm font-medium py-2 rounded-xl ${
+                  savedMsg.includes('✓') ? 'text-emerald-400 bg-emerald-500/10' : 'text-red-400 bg-red-500/10'
+                }`}>
+                  {savedMsg}
+                </div>
+              )}
+              {/* ── Close drawer ── */}
               <button onClick={() => setSettingsOpen(false)} disabled={!canStart}
                 className="w-full py-3 rounded-xl text-sm font-semibold text-white bg-teal-500 hover:bg-teal-400 transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
-                {canStart ? 'حفظ وإغلاق' : 'اكمل الحقول المطلوبة'}
+                {canStart ? 'إغلاق' : 'اكمل الحقول المطلوبة'}
               </button>
             </div>
           </div>

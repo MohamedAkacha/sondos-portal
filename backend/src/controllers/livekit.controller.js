@@ -53,17 +53,36 @@ exports.generateToken = async (req, res) => {
       || `sondos-test-${userId.slice(-6)}-${crypto.randomBytes(3).toString('hex')}`;
 
     // ── Agent config: from agentId (DB) or from request body (manual) ──
+    // If agentId is provided, load DB config as base then apply any
+    // overrides from the request body (so TestAgentPage edits take effect).
     let agentConfig;
     let agentId = req.body.agentId || null;
 
+    // Fields that can be overridden from the request body
+    const overrideFields = [
+      'sttProvider', 'sttModel', 'sttLanguage',
+      'llmModel', 'llmTemperature',
+      'ttsProvider', 'ttsModel', 'ttsVoice',
+      'systemPrompt', 'greeting',
+    ];
+
     if (agentId) {
-      // Load config from Agent model
+      // Load config from Agent model as the base
       const agent = await Agent.findOne({ _id: agentId, userId: req.user._id });
       if (!agent) {
         return res.status(404).json({ success: false, message: 'المساعد غير موجود' });
       }
       agentConfig = agent.toLiveKitConfig();
-      console.log(`[LiveKit] Config loaded from Agent: ${agent.name} (${agentId})`);
+
+      // Apply overrides from request body (TestAgentPage sends modified values)
+      for (const field of overrideFields) {
+        if (req.body[field] !== undefined && req.body[field] !== null && req.body[field] !== '') {
+          agentConfig[field] = req.body[field];
+        }
+      }
+
+      const hasOverrides = overrideFields.some(f => req.body[f] !== undefined && req.body[f] !== null && req.body[f] !== '');
+      console.log(`[LiveKit] Config loaded from Agent: ${agent.name} (${agentId})${hasOverrides ? ' + overrides from request' : ''}`);
     } else {
       // Manual config from request body (backwards compatible)
       agentConfig = {
