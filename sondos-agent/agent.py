@@ -263,7 +263,7 @@ def build_stt(config: dict):
 
             logger.info(f"🎧 STT: ElevenLabs {eleven_model} (lang={eleven_lang or 'auto'})")
             return elevenlabs.STT(
-                model=eleven_model,
+                model_id=eleven_model,
                 language=eleven_lang,
                 api_key=eleven_key,
             )
@@ -315,7 +315,7 @@ def build_tts(config: dict):
                 f"lang={eleven_lang or 'auto'}"
             )
             return elevenlabs.TTS(
-                model_id=eleven_model,
+                model=eleven_model,
                 voice_id=voice,
                 language=eleven_lang,
                 api_key=eleven_key,
