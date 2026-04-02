@@ -44,6 +44,7 @@ router.get('/status', livekitCtrl.getStatus);
 
 // Call records
 router.get('/calls/stats/summary', livekitCtrl.getCallStats);
+router.get('/stats/elevenlabs', livekitCtrl.getElevenLabsUsageStats);
 router.get('/calls', livekitCtrl.listCalls);
 router.get('/calls/:callId', livekitCtrl.getCall);
 router.post('/calls/:callId/transcript', livekitCtrl.saveTranscript);

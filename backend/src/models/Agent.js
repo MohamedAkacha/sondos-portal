@@ -158,7 +158,7 @@ const agentSchema = new mongoose.Schema({
   stt: {
     provider: {
       type: String,
-      enum: ['deepgram', 'openai'],
+      enum: ['deepgram', 'openai', 'elevenlabs'],
       default: 'deepgram',
     },
     model: { type: String, default: 'nova-2' },

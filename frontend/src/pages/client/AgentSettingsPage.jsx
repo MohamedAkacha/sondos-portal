@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import { useTheme } from "@/hooks/useTheme";
 import { useLanguage } from "@/hooks/useLanguage";
-import { getAgent, updateAgent, chatWithAgent, suggestContent } from "@/services/api/agentAPI";
+import { getAgent, updateAgent, chatWithAgent, suggestContent, getElevenLabsVoices } from "@/services/api/agentAPI";
 import { phoneAPI } from "@/services/api/phoneAPI";
 import { listLivekitCalls } from "@/services/api/livekitAPI";
 
@@ -367,18 +367,81 @@ function PersonalityTab({ agent, setAgent, isDark, onSuggest, suggesting }) {
 // Tab: Voice Settings
 // ══════════════════════════════════════════════════════
 function VoiceTab({ agent, setAgent, isDark }) {
+  const [elevenVoices, setElevenVoices] = useState([]);
+  const [elevenLoading, setElevenLoading] = useState(false);
+  const [elevenError, setElevenError] = useState(null);
+  const [playingId, setPlayingId] = useState(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const audioRef = useRef(null);
+
   const updateVoice = (key, value) => {
     setAgent(p => ({ ...p, voice: { ...p.voice, [key]: value } }));
   };
 
+  // ── Load ElevenLabs voices when provider switches to elevenlabs ──
+  useEffect(() => {
+    if (agent.voice?.provider === 'elevenlabs' && elevenVoices.length === 0 && !elevenLoading) {
+      loadElevenVoices();
+    }
+  }, [agent.voice?.provider]);
+
+  const loadElevenVoices = async () => {
+    setElevenLoading(true);
+    setElevenError(null);
+    try {
+      const res = await getElevenLabsVoices();
+      setElevenVoices(res.voices || []);
+    } catch (err) {
+      console.error('Failed to load ElevenLabs voices:', err);
+      setElevenError(err.message || 'فشل جلب الأصوات');
+    } finally {
+      setElevenLoading(false);
+    }
+  };
+
+  // ── Play voice preview ──
+  const playPreview = (voiceId, previewUrl) => {
+    if (!previewUrl) return;
+    if (playingId === voiceId) {
+      audioRef.current?.pause();
+      setPlayingId(null);
+      return;
+    }
+    if (audioRef.current) {
+      audioRef.current.src = previewUrl;
+      audioRef.current.play();
+      setPlayingId(voiceId);
+      audioRef.current.onended = () => setPlayingId(null);
+    }
+  };
+
+  // ── Filter ElevenLabs voices ──
+  const filteredVoices = elevenVoices.filter(v => {
+    if (!searchQuery) return true;
+    const q = searchQuery.toLowerCase();
+    return (
+      v.name.toLowerCase().includes(q) ||
+      (v.language || '').toLowerCase().includes(q) ||
+      (v.gender || '').toLowerCase().includes(q) ||
+      (v.accent || '').toLowerCase().includes(q) ||
+      (v.category || '').toLowerCase().includes(q)
+    );
+  });
+
+  // ── Separate cloned vs premade ──
+  const clonedVoices = filteredVoices.filter(v => v.category === 'cloned');
+  const otherVoices = filteredVoices.filter(v => v.category !== 'cloned');
+
   return (
     <>
+      <audio ref={audioRef} className="hidden" />
+
       {/* Provider */}
       <Section title="مزوّد الصوت" isDark={isDark}>
         <div className="flex gap-3">
           {[
             { value: 'openai', label: 'OpenAI TTS', desc: 'مستقر وسريع', icon: '🔊' },
-            { value: 'elevenlabs', label: 'ElevenLabs', desc: 'جودة عربية أعلى (يحتاج باقة مدفوعة)', icon: '🎙️' },
+            { value: 'elevenlabs', label: 'ElevenLabs', desc: 'جودة عربية أعلى', icon: '🎙️' },
           ].map(p => (
             <button
               key={p.value}
@@ -389,9 +452,7 @@ function VoiceTab({ agent, setAgent, isDark }) {
                   updateVoice('voiceId', 'nova');
                   updateVoice('voiceName', 'Nova (أنثى)');
                 } else {
-                  updateVoice('model', 'eleven_turbo_v2_5');
-                  updateVoice('voiceId', '21m00Tcm4TlvDq8ikWAM');
-                  updateVoice('voiceName', 'Rachel (أنثى — إنجليزي)');
+                  updateVoice('model', 'eleven_flash_v2_5');
                 }
               }}
               className={`flex-1 p-4 rounded-xl border text-center transition-all ${
@@ -437,29 +498,128 @@ function VoiceTab({ agent, setAgent, isDark }) {
         </Section>
       )}
 
-      {/* Voice selection — ElevenLabs */}
+      {/* Voice selection — ElevenLabs (Dynamic) */}
       {agent.voice?.provider === 'elevenlabs' && (
-        <Section title="اختيار الصوت" description="ElevenLabs يحتاج باقة Starter ($5/شهر) على الأقل" isDark={isDark}>
-          <div className={`p-4 rounded-xl border ${isDark ? 'bg-amber-500/5 border-amber-500/20' : 'bg-amber-50 border-amber-200'}`}>
-            <p className={`text-sm ${isDark ? 'text-amber-400' : 'text-amber-600'}`}>
-              ⚠️ ElevenLabs يحتاج باقة مدفوعة للعمل مع المكالمات الصوتية. الباقة المجانية لا تدعم البث المباشر (WebSocket Streaming).
-            </p>
-          </div>
-          <div className="mt-3">
-            <FieldLabel label="معرّف الصوت (Voice ID)" isDark={isDark} />
-            <TextInput
-              value={agent.voice?.voiceId}
-              onChange={(v) => updateVoice('voiceId', v)}
-              placeholder="21m00Tcm4TlvDq8ikWAM"
-              isDark={isDark}
-            />
-            <p className={`text-xs mt-1 ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>
-              تحصل على معرّف الصوت من لوحة ElevenLabs
-            </p>
-          </div>
+        <Section title="اختيار الصوت" description="اختر صوت من مكتبة ElevenLabs أو أصواتك المستنسخة" isDark={isDark}>
+
+          {/* Loading */}
+          {elevenLoading && (
+            <div className="flex items-center justify-center gap-2 py-8">
+              <Loader2 className="w-5 h-5 animate-spin text-teal-500" />
+              <span className={isDark ? 'text-gray-400' : 'text-gray-500'}>جاري تحميل الأصوات...</span>
+            </div>
+          )}
+
+          {/* Error */}
+          {elevenError && (
+            <div className={`p-4 rounded-xl border ${isDark ? 'bg-red-500/5 border-red-500/20' : 'bg-red-50 border-red-200'}`}>
+              <p className={`text-sm ${isDark ? 'text-red-400' : 'text-red-600'}`}>{elevenError}</p>
+              <button onClick={loadElevenVoices} className="text-xs text-teal-500 mt-2 underline">إعادة المحاولة</button>
+            </div>
+          )}
+
+          {/* Voices loaded */}
+          {!elevenLoading && !elevenError && elevenVoices.length > 0 && (
+            <>
+              {/* Search */}
+              <div className="mb-3">
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                  placeholder="ابحث عن صوت (اسم، لغة، جنس...)"
+                  className={`w-full rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30 ${
+                    isDark ? 'bg-[#0a0a0b] border border-[#1f1f23] text-white placeholder:text-gray-600' : 'bg-gray-50 border border-gray-200 text-gray-900 placeholder:text-gray-400'
+                  }`}
+                  dir="rtl"
+                />
+              </div>
+
+              {/* Cloned voices first */}
+              {clonedVoices.length > 0 && (
+                <div className="mb-4">
+                  <p className={`text-xs font-semibold mb-2 ${isDark ? 'text-teal-400' : 'text-teal-600'}`}>
+                    🎤 أصواتك المستنسخة ({clonedVoices.length})
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {clonedVoices.map(v => (
+                      <VoiceCard key={v.voice_id} voice={v} selected={agent.voice?.voiceId === v.voice_id}
+                        isDark={isDark} playing={playingId === v.voice_id}
+                        onSelect={() => { updateVoice('voiceId', v.voice_id); updateVoice('voiceName', v.name); }}
+                        onPlay={() => playPreview(v.voice_id, v.preview_url)} />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Other voices */}
+              <div>
+                <p className={`text-xs font-semibold mb-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                  مكتبة الأصوات ({otherVoices.length})
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[400px] overflow-y-auto pr-1">
+                  {otherVoices.slice(0, 50).map(v => (
+                    <VoiceCard key={v.voice_id} voice={v} selected={agent.voice?.voiceId === v.voice_id}
+                      isDark={isDark} playing={playingId === v.voice_id}
+                      onSelect={() => { updateVoice('voiceId', v.voice_id); updateVoice('voiceName', v.name); }}
+                      onPlay={() => playPreview(v.voice_id, v.preview_url)} />
+                  ))}
+                </div>
+                {otherVoices.length > 50 && (
+                  <p className={`text-xs mt-2 text-center ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>
+                    يُعرض أول 50 صوت — استخدم البحث لتصفية النتائج
+                  </p>
+                )}
+              </div>
+            </>
+          )}
         </Section>
       )}
     </>
+  );
+}
+
+// ── ElevenLabs Voice Card ──
+function VoiceCard({ voice, selected, isDark, playing, onSelect, onPlay }) {
+  const v = voice;
+  const tags = [v.gender, v.language, v.accent, v.use_case].filter(Boolean);
+  return (
+    <div
+      onClick={onSelect}
+      className={`p-3 rounded-xl border text-sm transition-all cursor-pointer text-right flex items-center gap-3 ${
+        selected
+          ? 'bg-teal-500/10 border-teal-500/30'
+          : isDark ? 'border-[#1f1f23] hover:border-[#2a2a2e]' : 'border-gray-200 hover:border-gray-300'
+      }`}
+    >
+      {/* Play button */}
+      {v.preview_url && (
+        <button
+          onClick={e => { e.stopPropagation(); onPlay(); }}
+          className={`shrink-0 w-8 h-8 rounded-full flex items-center justify-center transition-all ${
+            playing
+              ? 'bg-teal-500 text-white'
+              : isDark ? 'bg-[#1a1a1d] text-gray-400 hover:text-white' : 'bg-gray-100 text-gray-500 hover:text-gray-900'
+          }`}
+        >
+          {playing ? <Volume2 className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
+        </button>
+      )}
+      {/* Info */}
+      <div className="flex-1 min-w-0">
+        <p className={`font-medium truncate ${selected ? 'text-teal-400' : isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+          {v.name}
+          {v.category === 'cloned' && <span className="text-xs text-teal-500 mr-1">✦</span>}
+        </p>
+        {tags.length > 0 && (
+          <p className={`text-xs mt-0.5 truncate ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>
+            {tags.join(' · ')}
+          </p>
+        )}
+      </div>
+      {/* Selected indicator */}
+      {selected && <CheckCircle className="w-4 h-4 text-teal-500 shrink-0" />}
+    </div>
   );
 }
 

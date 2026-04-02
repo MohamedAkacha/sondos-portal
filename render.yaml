@@ -57,6 +57,10 @@ services:
       - key: SONDOS_AGENT_SECRET
         sync: false
 
+      # ElevenLabs (TTS + STT + Voice Cloning — Backend needs it for voice API)
+      - key: ELEVEN_API_KEY
+        sync: false
+
   # ════════════════════════════════════════════════════════
   # 2. Background Worker — LiveKit Voice Agent (Python)
   # ════════════════════════════════════════════════════════
@@ -81,6 +85,10 @@ services:
 
       # OpenAI (LLM + TTS)
       - key: OPENAI_API_KEY
+        sync: false
+
+      # ElevenLabs (TTS + STT — Agent Worker uses it for voice synthesis & recognition)
+      - key: ELEVEN_API_KEY
         sync: false
 
       # Sondos Backend (for saving transcript)

@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 import { useTheme } from '@/hooks/useTheme';
 import { getLivekitToken, saveLivekitTranscript } from '@/services/api/livekitAPI';
-import { getAgent, updateAgent } from '@/services/api/agentAPI';
+import { getAgent, updateAgent, getElevenLabsVoices } from '@/services/api/agentAPI';
 
 const CALL_STATE = {
   IDLE: 'idle', CONNECTING: 'connecting', CONNECTED: 'connected',
@@ -60,6 +60,16 @@ export default function TestAgentPage() {
   const callIdRef = useRef(null);
   const transcriptRef = useRef([]);
   const transcriptEndRef = useRef(null);
+
+  // ── ElevenLabs dynamic voices ──
+  const [elevenVoices, setElevenVoices] = useState([]);
+  useEffect(() => {
+    if (agentConfig.ttsProvider === 'elevenlabs' && elevenVoices.length === 0) {
+      getElevenLabsVoices()
+        .then(res => setElevenVoices(res.voices || []))
+        .catch(err => console.error('Failed to load ElevenLabs voices:', err));
+    }
+  }, [agentConfig.ttsProvider]);
 
   const [searchParams] = useSearchParams();
   const agentIdParam = searchParams.get('agentId');
@@ -349,16 +359,20 @@ export default function TestAgentPage() {
                 <div className={`flex justify-between text-[10px] mt-1 ${isDark?'text-gray-600':'text-gray-400'}`}><span>دقيق</span><span>إبداعي</span></div>
               </SG>
               <SG label="مزوّد الصوت" isDark={isDark}>
-                <SS value={agentConfig.ttsProvider} isDark={isDark} onChange={v=>{const d={openai:{ttsModel:'tts-1',ttsVoice:'nova'},elevenlabs:{ttsModel:'eleven_turbo_v2_5',ttsVoice:'21m00Tcm4TlvDq8ikWAM'}};updateConfig(c=>({...c,ttsProvider:v,...d[v]}));}}
+                <SS value={agentConfig.ttsProvider} isDark={isDark} onChange={v=>{const d={openai:{ttsModel:'tts-1',ttsVoice:'nova'},elevenlabs:{ttsModel:'eleven_flash_v2_5',ttsVoice:elevenVoices[0]?.voice_id||''}};updateConfig(c=>({...c,ttsProvider:v,...d[v]}));}}
                   options={[{v:'openai',l:'OpenAI TTS'},{v:'elevenlabs',l:'ElevenLabs ⭐'}]} />
               </SG>
               <SG label="الصوت" isDark={isDark}>
                 <SS value={agentConfig.ttsVoice} isDark={isDark} onChange={v=>updateConfig(c=>({...c,ttsVoice:v}))}
-                  options={agentConfig.ttsProvider==='elevenlabs'?[{v:'21m00Tcm4TlvDq8ikWAM',l:'Rachel'},{v:'pNInz6obpgDQGcFmaJgB',l:'Adam'},{v:'AZnzlk1XvdvUeBnXmlld',l:'Domi'},{v:'TxGEqnHWrfWFTfGW9XjX',l:'Josh'},{v:'EXAVITQu4vr4xnSDxMaL',l:'Bella'}]:[{v:'nova',l:'Nova (أنثى)'},{v:'alloy',l:'Alloy'},{v:'echo',l:'Echo (ذكر)'},{v:'shimmer',l:'Shimmer'}]} />
+                  options={agentConfig.ttsProvider==='elevenlabs'
+                    ? (elevenVoices.length > 0
+                        ? elevenVoices.slice(0, 30).map(ev => ({v: ev.voice_id, l: `${ev.name}${ev.category === 'cloned' ? ' ✦' : ''}${ev.gender ? ` (${ev.gender})` : ''}`}))
+                        : [{v:'',l:'جاري التحميل...'}])
+                    : [{v:'nova',l:'Nova (أنثى)'},{v:'alloy',l:'Alloy'},{v:'echo',l:'Echo (ذكر)'},{v:'shimmer',l:'Shimmer'}]} />
               </SG>
               <SG label="جودة الصوت" isDark={isDark}>
                 <SS value={agentConfig.ttsModel} isDark={isDark} onChange={v=>updateConfig(c=>({...c,ttsModel:v}))}
-                  options={agentConfig.ttsProvider==='elevenlabs'?[{v:'eleven_turbo_v2_5',l:'Turbo v2.5 ⭐'},{v:'eleven_multilingual_v2',l:'Multilingual v2'},{v:'eleven_flash_v2_5',l:'Flash v2.5'}]:[{v:'tts-1',l:'عادي (أسرع)'},{v:'tts-1-hd',l:'HD'}]} />
+                  options={agentConfig.ttsProvider==='elevenlabs'?[{v:'eleven_flash_v2_5',l:'Flash v2.5 ⚡ (أسرع)'},{v:'eleven_turbo_v2_5',l:'Turbo v2.5'},{v:'eleven_multilingual_v2',l:'Multilingual v2 (أجود)'}]:[{v:'tts-1',l:'عادي (أسرع)'},{v:'tts-1-hd',l:'HD'}]} />
               </SG>
               <div className={`pt-4 border-t ${isDark?'border-[#1f1f23]':'border-gray-200'}`}>
                 <SG label="شخصية الوكيل *" isDark={isDark}>

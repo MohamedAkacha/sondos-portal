@@ -100,8 +100,44 @@ export async function suggestContent(params) {
 }
 
 // ══════════════════════════════════════════════════════
-// LiveKit Config
+// ElevenLabs Voices
 // ══════════════════════════════════════════════════════
+
+/**
+ * Get available ElevenLabs voices (cached 1hr on backend)
+ * @returns {{ success: boolean, voices: Array<{ voice_id, name, category, preview_url, labels, gender, language }> }}
+ */
+export async function getElevenLabsVoices() {
+  return apiCall('/voices/elevenlabs');
+}
+
+/**
+ * Clone a voice using ElevenLabs Instant Voice Cloning
+ * @param {FormData} formData - must include: name, files (audio blobs)
+ * @returns {{ success: boolean, voice_id: string, name: string }}
+ */
+export async function cloneVoice(formData) {
+  const token = (await import('./httpClient')).getToken();
+  const response = await fetch('/api/voices/clone', {
+    method: 'POST',
+    headers: {
+      ...(token && { 'Authorization': `Bearer ${token}` }),
+      // No Content-Type — browser sets multipart boundary automatically
+    },
+    body: formData,
+  });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.message || `HTTP ${response.status}`);
+  return data;
+}
+
+/**
+ * Delete a cloned voice from ElevenLabs
+ * @param {string} voiceId
+ */
+export async function deleteVoice(voiceId) {
+  return apiCall(`/voices/${voiceId}`, { method: 'DELETE' });
+}
 
 /**
  * Get agent's LiveKit config (for voice test)

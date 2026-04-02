@@ -69,6 +69,7 @@ const planSchema = new mongoose.Schema({
     maxAssistants: { type: Number, default: 1 },       // عدد المساعدين
     maxPhoneNumbers: { type: Number, default: 0 },     // عدد أرقام الهاتف
     maxMonthlyMinutes: { type: Number, default: 100 }, // دقائق المكالمات الشهرية
+    maxClonedVoices: { type: Number, default: 1 },     // عدد الأصوات المستنسخة
   },
   // الترتيب والعرض
   sortOrder: {

@@ -26,6 +26,7 @@ export default function Sidebar({ onLogout, user }) {
     { path: '/agents',      icon: Bot,      label: 'المساعدين'               },
     { path: '/phones',      icon: Smartphone, label: 'أرقام الهاتف'          },
     { path: '/campaigns',   icon: PhoneOutgoing,   label: 'الحملات'                 },
+    { path: '/voice-clone', icon: Mic,             label: 'استنساخ الصوت'            },
     { path: '/test-agent',  icon: Mic,      label: t('sidebar.testAgent')    },
   ];
 

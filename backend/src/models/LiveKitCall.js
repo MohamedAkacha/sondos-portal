@@ -146,6 +146,14 @@ const livekitCallSchema = new mongoose.Schema({
     default: {},
   },
 
+  // ── ElevenLabs Usage Tracking (Step 24) ──
+  elevenLabsUsage: {
+    ttsProvider:     { type: String, default: '' },      // 'elevenlabs' or 'openai'
+    sttProvider:     { type: String, default: '' },      // 'elevenlabs' or 'deepgram'
+    ttsCharacters:   { type: Number, default: 0 },       // total chars sent to TTS
+    sttSeconds:      { type: Number, default: 0 },       // total seconds of STT
+  },
+
 }, {
   timestamps: true,
 });

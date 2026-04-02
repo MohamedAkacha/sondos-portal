@@ -1,11 +1,11 @@
 """
 ╔══════════════════════════════════════════════════════════════╗
-║  Sondos AI — LiveKit Voice Agent Worker (v6)                ║
+║  Sondos AI — LiveKit Voice Agent Worker (v7)                ║
 ║  ─────────────────────────────────────────────────────────   ║
 ║  LiveKit Agents 1.5 — AgentSession API                      ║
 ║  Fully dynamic — zero hardcoded config                      ║
 ║  All settings come from room metadata (set by backend)      ║
-║  STT (Deepgram / Whisper)                                   ║
+║  STT (Deepgram / ElevenLabs Scribe / Whisper)                ║
 ║  → LLM (OpenAI GPT-5.4 / 4o family)                        ║
 ║  → TTS (OpenAI / ElevenLabs — with voice cloning)           ║
 ║  + Transcript saving to backend                             ║
@@ -159,8 +159,8 @@ def build_outbound_prompt(config: dict) -> str:
 # Helper: Send transcript to backend
 # ══════════════════════════════════════════════════════
 
-async def save_transcript_to_backend(room_name: str, transcript: list[dict]):
-    """POST transcript to backend API."""
+async def save_transcript_to_backend(room_name: str, transcript: list[dict], usage: dict | None = None):
+    """POST transcript + usage to backend API."""
     if not BACKEND_URL or not AGENT_SECRET:
         logger.warning("⚠️ SONDOS_BACKEND_URL or SONDOS_AGENT_SECRET not set — skipping transcript save")
         return
@@ -174,6 +174,10 @@ async def save_transcript_to_backend(room_name: str, transcript: list[dict]):
         "roomName": room_name,
         "entries": transcript,
     }
+    # ── Attach ElevenLabs usage if available ──
+    if usage:
+        payload["elevenLabsUsage"] = usage
+
     headers = {
         "Content-Type": "application/json",
         "X-Agent-Secret": AGENT_SECRET,
@@ -227,7 +231,11 @@ async def report_call_result(room_name: str, result: str):
 # ══════════════════════════════════════════════════════
 
 def build_stt(config: dict):
-    """Build STT instance based on config provider."""
+    """Build STT instance based on config provider.
+    
+    Supports: deepgram, elevenlabs, openai
+    Fallback: If ElevenLabs fails (missing key, quota, etc), auto-fallback to Deepgram.
+    """
     provider = config["sttProvider"]
     language = config["sttLanguage"]
     model = config["sttModel"]
@@ -235,23 +243,87 @@ def build_stt(config: dict):
     if provider == "deepgram":
         logger.info(f"🎧 STT: Deepgram {model} (lang={language})")
         return deepgram.STT(model=model, language=language)
+
+    elif provider == "elevenlabs":
+        # ── ElevenLabs Scribe — realtime STT ──
+        # Requires ELEVEN_API_KEY env var
+        eleven_key = os.getenv("ELEVEN_API_KEY", "")
+        if not eleven_key:
+            logger.warning("⚠️ ELEVEN_API_KEY not set — falling back to Deepgram for STT")
+            return deepgram.STT(model="nova-2", language=language)
+
+        try:
+            # Map language codes: ElevenLabs uses ISO 639-1 / 639-3
+            # "ar" → "ar", "en" → "en", "multi" → None (auto-detect)
+            eleven_lang = language if language != "multi" else None
+
+            # Use scribe_v2_realtime for live calls (150ms latency)
+            # Use scribe_v1 or scribe_v2 for non-realtime (file transcription)
+            eleven_model = model if model.startswith("scribe_") else "scribe_v2_realtime"
+
+            logger.info(f"🎧 STT: ElevenLabs {eleven_model} (lang={eleven_lang or 'auto'})")
+            return elevenlabs.STT(
+                model=eleven_model,
+                language=eleven_lang,
+                api_key=eleven_key,
+            )
+        except Exception as e:
+            logger.error(f"❌ ElevenLabs STT init failed: {e} — falling back to Deepgram")
+            return deepgram.STT(model="nova-2", language=language)
+
     elif provider == "openai":
         logger.info(f"🎧 STT: OpenAI Whisper (lang={language})")
         return openai.STT(model="whisper-1", language=language)
+
     else:
         logger.warning(f"⚠️ Unknown STT provider '{provider}' — falling back to Deepgram")
         return deepgram.STT(model="nova-2", language=language)
 
 
 def build_tts(config: dict):
-    """Build TTS instance based on config provider."""
+    """Build TTS instance based on config provider.
+
+    Supports: openai, elevenlabs
+    Fallback: If ElevenLabs fails (missing key, quota, etc), auto-fallback to OpenAI TTS.
+    """
     provider = config["ttsProvider"]
     model = config["ttsModel"]
     voice = config["ttsVoice"]
+    language = config.get("sttLanguage", "ar")  # reuse STT language for TTS
 
     if provider == "elevenlabs":
-        logger.info(f"🔊 TTS: ElevenLabs {voice}")
-        return elevenlabs.TTS(voice_id=voice)
+        # ── ElevenLabs TTS ──
+        # Requires ELEVEN_API_KEY env var
+        eleven_key = os.getenv("ELEVEN_API_KEY", "")
+        if not eleven_key:
+            logger.warning("⚠️ ELEVEN_API_KEY not set — falling back to OpenAI TTS")
+            return openai.TTS(model="tts-1", voice="nova")
+
+        try:
+            # Prefer Flash model for live calls (75ms latency, 50% cheaper)
+            # Only override if the model is the old default or empty
+            if model in ("tts-1", "tts-1-hd", "", None):
+                eleven_model = "eleven_flash_v2_5"
+            else:
+                eleven_model = model
+
+            # Map language for ElevenLabs
+            eleven_lang = language if language != "multi" else None
+
+            logger.info(
+                f"🔊 TTS: ElevenLabs model={eleven_model} voice={voice} "
+                f"lang={eleven_lang or 'auto'}"
+            )
+            return elevenlabs.TTS(
+                model_id=eleven_model,
+                voice_id=voice,
+                language=eleven_lang,
+                api_key=eleven_key,
+            )
+        except Exception as e:
+            logger.error(f"❌ ElevenLabs TTS init failed: {e} — falling back to OpenAI TTS")
+            return openai.TTS(model="tts-1", voice="nova")
+
     else:
         logger.info(f"🔊 TTS: OpenAI {model}/{voice}")
         return openai.TTS(model=model, voice=voice)
@@ -305,12 +377,20 @@ async def entrypoint(ctx: JobContext):
     transcript: list[dict] = []
     user_has_spoken = False
 
+    # ── ElevenLabs usage tracking (Step 24) ──
+    tts_total_chars = 0
+    stt_start_time = datetime.now(timezone.utc)
+
     def add_transcript(speaker: str, text: str):
+        nonlocal tts_total_chars
         transcript.append({
             "speaker": speaker,
             "text": text,
             "timestamp": datetime.now(timezone.utc).isoformat(),
         })
+        # Count TTS characters (agent speech = sent to TTS)
+        if speaker == "agent" and text:
+            tts_total_chars += len(text)
 
     # ── Create AgentSession ──
     session = AgentSession(
@@ -386,7 +466,7 @@ async def entrypoint(ctx: JobContext):
                 logger.info(f"⏰ Outbound ring timeout — no answer in {OUTBOUND_RING_TIMEOUT}s → {ctx.room.name}")
                 add_transcript("system", f"[المكالمة أُغلقت — لم يرد العميل خلال {OUTBOUND_RING_TIMEOUT} ثانية]")
                 await report_call_result(ctx.room.name, "no_answer")
-                await save_transcript_to_backend(ctx.room.name, transcript)
+                await save_transcript_to_backend(ctx.room.name, transcript, build_usage())
                 try:
                     await ctx.room.disconnect()
                 except Exception:
@@ -399,7 +479,7 @@ async def entrypoint(ctx: JobContext):
                 logger.info(f"⏰ Outbound speech timeout — customer answered but didn't speak in {OUTBOUND_SPEECH_TIMEOUT}s → {ctx.room.name}")
                 add_transcript("system", f"[المكالمة أُغلقت — العميل ردّ لكن لم يتحدث خلال {OUTBOUND_SPEECH_TIMEOUT} ثانية]")
                 await report_call_result(ctx.room.name, "no_answer")
-                await save_transcript_to_backend(ctx.room.name, transcript)
+                await save_transcript_to_backend(ctx.room.name, transcript, build_usage())
                 try:
                     await ctx.room.disconnect()
                 except Exception:
@@ -407,14 +487,28 @@ async def entrypoint(ctx: JobContext):
 
         timeout_task = asyncio.create_task(outbound_timeout_check())
 
+    # ── Build ElevenLabs usage data (Step 24) ──
+    def build_usage() -> dict:
+        stt_secs = int((datetime.now(timezone.utc) - stt_start_time).total_seconds())
+        return {
+            "ttsProvider": config["ttsProvider"],
+            "sttProvider": config["sttProvider"],
+            "ttsCharacters": tts_total_chars,
+            "sttSeconds": stt_secs,
+        }
+
     # ── Wait for disconnect, then save transcript ──
     @ctx.room.on("disconnected")
     def on_disconnect():
-        logger.info(f"📴 Room disconnected: {ctx.room.name} | Transcript: {len(transcript)} entries | Direction: {direction_label}")
+        usage = build_usage()
+        logger.info(
+            f"📴 Room disconnected: {ctx.room.name} | Transcript: {len(transcript)} entries | "
+            f"Direction: {direction_label} | TTS chars: {usage['ttsCharacters']} | STT secs: {usage['sttSeconds']}"
+        )
         # Cancel timeout if still running
         if is_outbound and timeout_task and not timeout_task.done():
             timeout_task.cancel()
-        asyncio.create_task(save_transcript_to_backend(ctx.room.name, transcript))
+        asyncio.create_task(save_transcript_to_backend(ctx.room.name, transcript, usage))
 
     # Keep alive until room closes
     try:
@@ -423,7 +517,7 @@ async def entrypoint(ctx: JobContext):
         logger.info(f"🛑 Agent task cancelled for room: {ctx.room.name}")
         if is_outbound and timeout_task and not timeout_task.done():
             timeout_task.cancel()
-        await save_transcript_to_backend(ctx.room.name, transcript)
+        await save_transcript_to_backend(ctx.room.name, transcript, build_usage())
 
 
 # ══════════════════════════════════════════════════════

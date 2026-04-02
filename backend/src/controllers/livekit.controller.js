@@ -363,7 +363,7 @@ exports.webhook = async (req, res) => {
 // POST /api/livekit/agent/transcript
 exports.agentTranscript = async (req, res) => {
   try {
-    const { roomName, entries } = req.body;
+    const { roomName, entries, elevenLabsUsage } = req.body;
 
     if (!roomName || !entries || !Array.isArray(entries) || entries.length === 0) {
       return res.status(400).json({ success: false, message: 'roomName and entries required' });
@@ -388,9 +388,21 @@ exports.agentTranscript = async (req, res) => {
       }))
     );
 
+    // ── Save ElevenLabs usage (Step 24) ──
+    if (elevenLabsUsage) {
+      callRecord.elevenLabsUsage = {
+        ttsProvider:   elevenLabsUsage.ttsProvider || '',
+        sttProvider:   elevenLabsUsage.sttProvider || '',
+        ttsCharacters: elevenLabsUsage.ttsCharacters || 0,
+        sttSeconds:    elevenLabsUsage.sttSeconds || 0,
+      };
+      callRecord.markModified('elevenLabsUsage');
+    }
+
     await callRecord.save();
 
-    console.log(`[LiveKit Agent] ✅ Transcript saved: ${entries.length} entries → ${roomName}`);
+    const usageLog = elevenLabsUsage ? ` | Usage: TTS=${elevenLabsUsage.ttsCharacters || 0} chars, STT=${elevenLabsUsage.sttSeconds || 0}s` : '';
+    console.log(`[LiveKit Agent] ✅ Transcript saved: ${entries.length} entries → ${roomName}${usageLog}`);
 
     res.json({
       success: true,
@@ -700,5 +712,64 @@ exports.getCall = async (req, res) => {
   } catch (error) {
     console.error('[LiveKit Call]', error.message);
     res.status(500).json({ success: false, message: 'فشل جلب تفاصيل المكالمة' });
+  }
+};
+
+
+// ╔══════════════════════════════════════════════════════════╗
+// ║  6. ELEVENLABS USAGE STATS — Admin (Step 25)             ║
+// ╚══════════════════════════════════════════════════════════╝
+
+// GET /api/livekit/stats/elevenlabs
+exports.getElevenLabsUsageStats = async (req, res) => {
+  try {
+    const filter = {};
+
+    // Admin sees all, user sees own
+    if (req.user.role !== 'admin') filter.userId = req.user._id;
+
+    // Optional date range
+    if (req.query.from || req.query.to) {
+      filter.createdAt = {};
+      if (req.query.from) filter.createdAt.$gte = new Date(req.query.from);
+      if (req.query.to) filter.createdAt.$lte = new Date(req.query.to);
+    }
+
+    const stats = await LiveKitCall.aggregate([
+      { $match: { ...filter, 'elevenLabsUsage.ttsProvider': { $exists: true, $ne: '' } } },
+      {
+        $group: {
+          _id: null,
+          totalCalls: { $sum: 1 },
+          totalTtsCharacters: { $sum: '$elevenLabsUsage.ttsCharacters' },
+          totalSttSeconds: { $sum: '$elevenLabsUsage.sttSeconds' },
+          elevenLabsTtsCalls: {
+            $sum: { $cond: [{ $eq: ['$elevenLabsUsage.ttsProvider', 'elevenlabs'] }, 1, 0] },
+          },
+          elevenLabsSttCalls: {
+            $sum: { $cond: [{ $eq: ['$elevenLabsUsage.sttProvider', 'elevenlabs'] }, 1, 0] },
+          },
+        },
+      },
+    ]);
+
+    const s = stats[0] || {};
+
+    res.json({
+      success: true,
+      usage: {
+        totalCalls:           s.totalCalls || 0,
+        elevenLabsTtsCalls:   s.elevenLabsTtsCalls || 0,
+        elevenLabsSttCalls:   s.elevenLabsSttCalls || 0,
+        totalTtsCharacters:   s.totalTtsCharacters || 0,
+        totalSttSeconds:      s.totalSttSeconds || 0,
+        // Estimated costs (ElevenAPI rates)
+        estimatedTtsCost:     Math.round(((s.totalTtsCharacters || 0) / 1000) * 0.05 * 100) / 100, // Flash $0.05/1K
+        estimatedSttCost:     Math.round(((s.totalSttSeconds || 0) / 3600) * 0.39 * 100) / 100,    // Realtime $0.39/hr
+      },
+    });
+  } catch (error) {
+    console.error('[ElevenLabs Usage]', error.message);
+    res.status(500).json({ success: false, message: 'فشل جلب إحصائيات الاستهلاك' });
   }
 };
