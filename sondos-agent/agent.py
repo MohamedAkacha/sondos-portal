@@ -247,24 +247,19 @@ def build_stt(config: dict):
     elif provider == "elevenlabs":
         # ── ElevenLabs Scribe — realtime STT ──
         # Requires ELEVEN_API_KEY env var
+        # Note: Scribe auto-detects language (90+ supported) — no language param needed
         eleven_key = os.getenv("ELEVEN_API_KEY", "")
         if not eleven_key:
             logger.warning("⚠️ ELEVEN_API_KEY not set — falling back to Deepgram for STT")
             return deepgram.STT(model="nova-2", language=language)
 
         try:
-            # Map language codes: ElevenLabs uses ISO 639-1 / 639-3
-            # "ar" → "ar", "en" → "en", "multi" → None (auto-detect)
-            eleven_lang = language if language != "multi" else None
-
             # Use scribe_v2_realtime for live calls (150ms latency)
-            # Use scribe_v1 or scribe_v2 for non-realtime (file transcription)
             eleven_model = model if model.startswith("scribe_") else "scribe_v2_realtime"
 
-            logger.info(f"🎧 STT: ElevenLabs {eleven_model} (lang={eleven_lang or 'auto'})")
+            logger.info(f"🎧 STT: ElevenLabs {eleven_model} (language auto-detect)")
             return elevenlabs.STT(
                 model_id=eleven_model,
-                language=eleven_lang,
                 api_key=eleven_key,
             )
         except Exception as e:
