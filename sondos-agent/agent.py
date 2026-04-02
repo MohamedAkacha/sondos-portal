@@ -247,15 +247,18 @@ def build_stt(config: dict):
     elif provider == "elevenlabs":
         # ── ElevenLabs Scribe — realtime STT ──
         # Requires ELEVEN_API_KEY env var
-        # Note: Scribe auto-detects language (90+ supported) — no language param needed
+        # Language is auto-detected by Scribe v2 Realtime (90+ languages)
+        # IMPORTANT: Only scribe_v2_realtime works for live streaming calls
+        #            scribe_v1 / scribe_v2 are batch-only models
         eleven_key = os.getenv("ELEVEN_API_KEY", "")
         if not eleven_key:
             logger.warning("⚠️ ELEVEN_API_KEY not set — falling back to Deepgram for STT")
             return deepgram.STT(model="nova-2", language=language)
 
         try:
-            # Use scribe_v2_realtime for live calls (150ms latency)
-            eleven_model = model if model.startswith("scribe_") else "scribe_v2_realtime"
+            # Always use scribe_v2_realtime for live calls
+            # scribe_v1/v2 are batch models and produce garbage in streaming mode
+            eleven_model = "scribe_v2_realtime"
 
             logger.info(f"🎧 STT: ElevenLabs {eleven_model} (language auto-detect)")
             return elevenlabs.STT(
