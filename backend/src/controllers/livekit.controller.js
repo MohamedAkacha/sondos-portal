@@ -62,7 +62,7 @@ exports.generateToken = async (req, res) => {
     const overrideFields = [
       'sttProvider', 'sttModel', 'sttLanguage',
       'llmModel', 'llmTemperature',
-      'ttsProvider', 'ttsModel', 'ttsVoice',
+      'ttsProvider', 'ttsModel', 'ttsVoice', 'ttsLanguage',
       'systemPrompt', 'greeting',
     ];
 
@@ -94,6 +94,7 @@ exports.generateToken = async (req, res) => {
         ttsProvider:    req.body.ttsProvider,
         ttsModel:       req.body.ttsModel,
         ttsVoice:       req.body.ttsVoice,
+        ttsLanguage:    req.body.ttsLanguage || req.body.sttLanguage || 'ar',
         systemPrompt:   req.body.systemPrompt,
         greeting:       req.body.greeting,
       };

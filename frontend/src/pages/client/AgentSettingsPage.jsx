@@ -436,6 +436,39 @@ function VoiceTab({ agent, setAgent, isDark }) {
     <>
       <audio ref={audioRef} className="hidden" />
 
+      {/* Conversation Language */}
+      <Section title="لغة المحادثة" description="اللغة اللي يتكلّم ويفهم بها المساعد" isDark={isDark}>
+        <div className="flex gap-2">
+          {[
+            { value: 'ar', label: 'العربية', icon: '🇸🇦', desc: 'يتكلّم ويفهم عربي فقط' },
+            { value: 'en', label: 'English', icon: '🇬🇧', desc: 'Speaks and understands English only' },
+            { value: 'both', label: 'تلقائي', icon: '🌍', desc: 'يكتشف اللغة تلقائياً' },
+          ].map(l => (
+            <button
+              key={l.value}
+              onClick={() => {
+                setAgent(p => ({
+                  ...p,
+                  language: l.value,
+                  stt: { ...p.stt, language: l.value === 'both' ? 'multi' : l.value },
+                }));
+              }}
+              className={`flex-1 p-3 rounded-xl border text-center transition-all ${
+                agent.language === l.value
+                  ? 'bg-teal-500/10 border-teal-500/30'
+                  : isDark ? 'border-[#1f1f23] hover:border-[#2a2a2e]' : 'border-gray-200 hover:border-gray-300'
+              }`}
+            >
+              <span className="text-xl">{l.icon}</span>
+              <p className={`text-sm font-medium mt-1 ${agent.language === l.value ? 'text-teal-400' : isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                {l.label}
+              </p>
+              <p className={`text-[10px] mt-0.5 ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>{l.desc}</p>
+            </button>
+          ))}
+        </div>
+      </Section>
+
       {/* Provider */}
       <Section title="مزوّد الصوت" isDark={isDark}>
         <div className="flex gap-3">

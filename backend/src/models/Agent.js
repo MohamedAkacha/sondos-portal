@@ -321,6 +321,7 @@ agentSchema.methods.toLiveKitConfig = function () {
     ttsProvider: this.voice.provider,
     ttsModel: this.voice.model,
     ttsVoice: this.voice.voiceId,
+    ttsLanguage: this.language === 'both' ? null : this.language,  // ar, en, or null (auto)
     systemPrompt: this.useCustomPrompt ? this.systemPrompt : this.buildSystemPrompt(),
     greeting: this.greeting,
     // Call direction — Python Worker uses this to adjust behavior

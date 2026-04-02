@@ -97,6 +97,7 @@ def parse_room_config(room) -> dict:
         "ttsProvider":    agent_cfg.get("ttsProvider", "openai"),
         "ttsModel":       agent_cfg.get("ttsModel", "tts-1"),
         "ttsVoice":       agent_cfg["ttsVoice"],
+        "ttsLanguage":    agent_cfg.get("ttsLanguage", agent_cfg.get("sttLanguage", "ar")),
         "systemPrompt":   agent_cfg["systemPrompt"],
         "greeting":       agent_cfg["greeting"],
         # ── Direction-specific ──
@@ -247,24 +248,49 @@ def build_stt(config: dict):
     elif provider == "elevenlabs":
         # ── ElevenLabs Scribe — realtime STT ──
         # Requires ELEVEN_API_KEY env var
-        # Language is auto-detected by Scribe v2 Realtime (90+ languages)
         # IMPORTANT: Only scribe_v2_realtime works for live streaming calls
-        #            scribe_v1 / scribe_v2 are batch-only models
         eleven_key = os.getenv("ELEVEN_API_KEY", "")
         if not eleven_key:
             logger.warning("⚠️ ELEVEN_API_KEY not set — falling back to Deepgram for STT")
             return deepgram.STT(model="nova-2", language=language)
 
         try:
-            # Always use scribe_v2_realtime for live calls
-            # scribe_v1/v2 are batch models and produce garbage in streaming mode
             eleven_model = "scribe_v2_realtime"
+            # Map language: "multi" → None (auto), otherwise pass as-is
+            eleven_lang = language if language != "multi" else None
 
-            logger.info(f"🎧 STT: ElevenLabs {eleven_model} (language auto-detect)")
-            return elevenlabs.STT(
+            logger.info(f"🎧 STT: ElevenLabs {eleven_model} (lang={eleven_lang or 'auto'})")
+
+            stt_instance = elevenlabs.STT(
                 model_id=eleven_model,
                 api_key=eleven_key,
+                language_code=eleven_lang,
             )
+            return stt_instance
+        except TypeError as te:
+            # language_code not supported in this version — try without it
+            # but patch the stream method to pass language
+            if "language_code" in str(te):
+                logger.warning(f"⚠️ language_code not supported — creating STT without language hint")
+                try:
+                    stt_instance = elevenlabs.STT(
+                        model_id=eleven_model,
+                        api_key=eleven_key,
+                    )
+                    # Patch stream() to always pass the configured language
+                    if eleven_lang:
+                        _orig_stream = stt_instance.stream
+                        def _patched_stream(**kwargs):
+                            kwargs.setdefault("language", eleven_lang)
+                            return _orig_stream(**kwargs)
+                        stt_instance.stream = _patched_stream
+                        logger.info(f"🎧 STT: ElevenLabs {eleven_model} (patched lang={eleven_lang})")
+                    return stt_instance
+                except Exception as e2:
+                    logger.error(f"❌ ElevenLabs STT fallback failed: {e2}")
+                    return deepgram.STT(model="nova-2", language=language)
+            else:
+                raise
         except Exception as e:
             logger.error(f"❌ ElevenLabs STT init failed: {e} — falling back to Deepgram")
             return deepgram.STT(model="nova-2", language=language)
@@ -287,7 +313,7 @@ def build_tts(config: dict):
     provider = config["ttsProvider"]
     model = config["ttsModel"]
     voice = config["ttsVoice"]
-    language = config.get("sttLanguage", "ar")  # reuse STT language for TTS
+    language = config.get("ttsLanguage", config.get("sttLanguage", "ar"))  # dedicated TTS language
 
     if provider == "elevenlabs":
         # ── ElevenLabs TTS ──

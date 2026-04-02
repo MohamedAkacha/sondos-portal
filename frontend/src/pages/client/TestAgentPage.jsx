@@ -48,6 +48,7 @@ export default function TestAgentPage() {
     sttProvider: 'deepgram', sttModel: 'nova-2', sttLanguage: 'ar',
     llmModel: 'gpt-5.4-mini', llmTemperature: 0.7,
     ttsProvider: 'openai', ttsModel: 'tts-1', ttsVoice: 'nova',
+    ttsLanguage: 'ar',
     systemPrompt: '', greeting: '',
   });
 
@@ -88,6 +89,7 @@ export default function TestAgentPage() {
             sttLanguage: a.stt?.language || 'ar', llmModel: a.llm?.model || 'gpt-5.4-mini',
             llmTemperature: a.llm?.temperature || 0.7, ttsProvider: a.voice?.provider || 'openai',
             ttsModel: a.voice?.model || 'tts-1', ttsVoice: a.voice?.voiceId || 'nova',
+            ttsLanguage: a.language === 'both' ? null : (a.language || 'ar'),
             systemPrompt: a.systemPrompt || '', greeting: a.greeting || 'أهلاً وسهلاً',
           });
           setAgentMode(true); setAgentName(a.name);
@@ -348,8 +350,8 @@ export default function TestAgentPage() {
                 <SS value={agentConfig.sttProvider} isDark={isDark} onChange={v => { const m={deepgram:'nova-2',openai:'whisper-1',elevenlabs:'scribe_v1'}; updateConfig(c=>({...c,sttProvider:v,sttModel:m[v]||'nova-2'})); }}
                   options={[{v:'deepgram',l:'Deepgram Nova-2'},{v:'elevenlabs',l:'ElevenLabs Scribe'},{v:'openai',l:'OpenAI Whisper'}]} />
               </SG>
-              <SG label="لغة التعرف" isDark={isDark}>
-                <SS value={agentConfig.sttLanguage} isDark={isDark} onChange={v=>updateConfig(c=>({...c,sttLanguage:v}))} options={[{v:'ar',l:'العربية'},{v:'en',l:'English'},{v:'multi',l:'تلقائي'}]} />
+              <SG label="لغة المحادثة" isDark={isDark}>
+                <SS value={agentConfig.sttLanguage} isDark={isDark} onChange={v=>updateConfig(c=>({...c, sttLanguage:v, ttsLanguage: v==='multi'?null:v}))} options={[{v:'ar',l:'🇸🇦 العربية'},{v:'en',l:'🇬🇧 English'},{v:'multi',l:'🌍 تلقائي'}]} />
               </SG>
               <SG label="نموذج الذكاء" isDark={isDark}>
                 <SS value={agentConfig.llmModel} isDark={isDark} onChange={v=>updateConfig(c=>({...c,llmModel:v}))} options={[{v:'gpt-5.4',l:'GPT-5.4 (الأذكى)'},{v:'gpt-5.4-mini',l:'GPT-5.4 Mini ⭐'},{v:'gpt-5.4-nano',l:'GPT-5.4 Nano'},{v:'gpt-4o',l:'GPT-4o'},{v:'gpt-4o-mini',l:'GPT-4o Mini'}]} />
