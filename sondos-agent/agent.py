@@ -28,7 +28,6 @@ from livekit.agents import (
     JobContext,
     cli,
 )
-from livekit.agents.voice import TurnHandlingOptions
 from livekit.plugins import deepgram, openai, silero, elevenlabs
 
 # ── Load .env ──
@@ -421,17 +420,6 @@ async def entrypoint(ctx: JobContext):
         stt=stt,
         llm=llm_instance,
         tts=tts,
-        turn_handling=TurnHandlingOptions(
-            endpointing={
-                "mode": "dynamic",
-                "min_delay": 0.5,
-                "max_delay": 3.0,
-            },
-            interruption={
-                "enabled": True,
-                "mode": "vad",
-            },
-        ),
     )
 
     # ── Listen for transcript events ──
