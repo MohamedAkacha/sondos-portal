@@ -951,8 +951,8 @@ exports.initiateOutbound = async (req, res) => {
     });
 
     // ── Step 5: Dial out via SIP (using formatted number) ──
-    const sipHost = sipAddress.includes('@') ? sipAddress.split('@')[1] : sipAddress;
-    const sipCallTo = `sip:${formattedDestination}@${sipHost}`;
+    // LiveKit outbound trunk already has the SIP address — just send the number
+    const sipCallTo = formattedDestination;
 
     const sipResult = await livekitSip.createSipParticipant({
       sipTrunkId: outboundTrunkId,
