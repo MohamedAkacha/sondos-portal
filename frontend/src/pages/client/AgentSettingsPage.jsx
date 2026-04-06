@@ -1076,10 +1076,16 @@ function OutboundTab({ agent, isDark }) {
   const [calling, setCalling] = useState(false);
   const [callResult, setCallResult] = useState(null);
   const [callError, setCallError] = useState(null);
+  const [hasLinkedPhone, setHasLinkedPhone] = useState(!!agent.phoneNumberId);
 
   useEffect(() => {
     const load = async () => {
       try {
+        // Check if phone is linked (by phoneNumberId OR agentId)
+        const phonesRes = await phoneAPI.list();
+        const linked = (phonesRes.phones || []).find(p => p.id === agent.phoneNumberId || p.agentId === agent.id);
+        setHasLinkedPhone(!!linked);
+
         const res = await listLivekitCalls({ direction: 'outbound', limit: 20 });
         const agentCalls = (res.calls || []).filter(c => c.agentId === agent.id);
         setCalls(agentCalls);
@@ -1099,14 +1105,14 @@ function OutboundTab({ agent, isDark }) {
   }, [agent.id]);
 
   const handleDial = async () => {
-    if (!destination.startsWith('+') || !agent.phoneNumberId) return;
+    if (!destination.startsWith('+')) return;
     setCalling(true);
     setCallError(null);
     setCallResult(null);
     try {
       // Find linked phone to make the call
       const phonesRes = await phoneAPI.list();
-      const linkedPhone = (phonesRes.phones || []).find(p => p.agentId === agent.id);
+      const linkedPhone = (phonesRes.phones || []).find(p => p.id === agent.phoneNumberId || p.agentId === agent.id);
       if (!linkedPhone) {
         setCallError('لا يوجد رقم مربوط — اربط رقم من تاب الهاتف أولاً');
         return;
@@ -1164,7 +1170,7 @@ function OutboundTab({ agent, isDark }) {
           <h3 className={`text-sm font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
             <PhoneOutgoing className="w-4 h-4 inline ml-2" /> مكالمة صادرة جديدة
           </h3>
-          {!agent.phoneNumberId && (
+          {!hasLinkedPhone && (
             <span className={`text-xs ${isDark ? 'text-amber-400' : 'text-amber-600'}`}>⚠ اربط رقم أولاً</span>
           )}
         </div>
@@ -1198,7 +1204,7 @@ function OutboundTab({ agent, isDark }) {
 
             <button
               onClick={handleDial}
-              disabled={!destination.startsWith('+') || calling || !agent.phoneNumberId}
+              disabled={!destination.startsWith('+') || calling || !hasLinkedPhone}
               className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold bg-gradient-to-l from-teal-500 to-cyan-500 hover:from-teal-400 hover:to-cyan-400 text-white disabled:opacity-50 transition-all"
             >
               {calling ? <Loader2 className="w-4 h-4 animate-spin" /> : <PhoneOutgoing className="w-4 h-4" />}

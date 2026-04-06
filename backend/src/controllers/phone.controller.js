@@ -395,10 +395,17 @@ exports.addCustomNumber = async (req, res) => {
       sipDispatchRuleId: sipResult.sipDispatchRuleId || '',
       sipOutboundTrunkId: sipResult.sipOutboundTrunkId || '',
       sipInboundUri,
-      // ── Status ──
-      status: sipResult.sipTrunkId ? 'active' : 'pending',
-      statusMessage: sipResult.sipTrunkId ? '' : 'أدخل بيانات SIP وأعد المحاولة',
+      // ── Status — active if ANY trunk was created (inbound OR outbound) ──
+      status: (sipResult.sipTrunkId || sipResult.sipOutboundTrunkId) ? 'active' : 'pending',
+      statusMessage: (sipResult.sipTrunkId || sipResult.sipOutboundTrunkId) ? '' : 'أدخل بيانات SIP وأعد المحاولة',
     });
+
+    // ── Bug fix: Sync agent.phoneNumberId (bidirectional link) ──
+    if (agent) {
+      agent.phoneNumberId = phone._id;
+      await agent.save();
+      console.log(`[Phone Custom Added] Synced agent.phoneNumberId → ${phone._id}`);
+    }
 
     console.log(`[Phone Custom Added] ${phoneNumber} by ${req.user.email} | Inbound: ${!!sipResult.sipTrunkId} | Outbound: ${!!sipResult.sipOutboundTrunkId} | URI: ${sipInboundUri}`);
 
