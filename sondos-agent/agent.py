@@ -28,6 +28,7 @@ from livekit.agents import (
     JobContext,
     cli,
 )
+from livekit.agents.voice import TurnHandlingOptions
 from livekit.plugins import deepgram, openai, silero, elevenlabs
 
 # ── Load .env ──
@@ -256,17 +257,17 @@ def build_stt(config: dict):
 
         try:
             # Import VADOptions for server-side voice activity detection
-            from livekit.plugins.elevenlabs import VADOptions
+            from livekit.plugins.elevenlabs.stt import VADOptions
 
             eleven_model = "scribe_v2_realtime"
             eleven_lang = language if language != "multi" else None
 
             # Server VAD tells ElevenLabs: "when user is silent for 1s, commit the transcript"
             vad_opts = VADOptions(
-                silence_threshold_secs=1.0,   # commit after 1s of silence
-                threshold=0.5,                # voice detection sensitivity
-                min_speech_duration_ms=100,    # ignore sounds shorter than 100ms
-                min_silence_duration_ms=300,   # min silence gap to detect pause
+                vad_silence_threshold_secs=1.0,  # commit after 1s of silence
+                vad_threshold=0.5,               # voice detection sensitivity
+                min_speech_duration_ms=100,       # ignore sounds shorter than 100ms
+                min_silence_duration_ms=500,      # 500ms silence = user paused (default 2500 is too long!)
             )
 
             stt_instance = elevenlabs.STT(
@@ -275,7 +276,7 @@ def build_stt(config: dict):
                 language_code=eleven_lang,
                 server_vad=vad_opts,
             )
-            logger.info(f"🎧 STT: ElevenLabs {eleven_model} (lang={eleven_lang or 'auto'}, server_vad=ON)")
+            logger.info(f"🎧 STT: ElevenLabs {eleven_model} (lang={eleven_lang or 'auto'}, server_vad=ON, silence=500ms)")
             return stt_instance
 
         except Exception as e:
@@ -420,6 +421,17 @@ async def entrypoint(ctx: JobContext):
         stt=stt,
         llm=llm_instance,
         tts=tts,
+        turn_handling=TurnHandlingOptions(
+            endpointing={
+                "mode": "dynamic",
+                "min_delay": 0.5,
+                "max_delay": 3.0,
+            },
+            interruption={
+                "enabled": True,
+                "mode": "vad",
+            },
+        ),
     )
 
     # ── Listen for transcript events ──
