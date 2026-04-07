@@ -28,7 +28,6 @@ from livekit.agents import (
     JobContext,
     cli,
 )
-from livekit.agents.voice import TurnHandlingOptions
 from livekit.plugins import deepgram, openai, silero, elevenlabs
 
 # ── Load .env ──
@@ -256,42 +255,20 @@ def build_stt(config: dict):
             return deepgram.STT(model="nova-2", language=language)
 
         try:
-            # Import VADOptions for server-side voice activity detection
-            from livekit.plugins.elevenlabs.stt import VADOptions
-
             eleven_model = "scribe_v2_realtime"
             eleven_lang = language if language != "multi" else None
-
-            # Server VAD tells ElevenLabs: "when user is silent for 1s, commit the transcript"
-            vad_opts = VADOptions(
-                vad_silence_threshold_secs=1.0,  # commit after 1s of silence
-                vad_threshold=0.5,               # voice detection sensitivity
-                min_speech_duration_ms=100,       # ignore sounds shorter than 100ms
-                min_silence_duration_ms=500,      # 500ms silence = user paused (default 2500 is too long!)
-            )
 
             stt_instance = elevenlabs.STT(
                 model_id=eleven_model,
                 api_key=eleven_key,
                 language_code=eleven_lang,
-                server_vad=vad_opts,
             )
-            logger.info(f"🎧 STT: ElevenLabs {eleven_model} (lang={eleven_lang or 'auto'}, server_vad=ON, silence=500ms)")
+            logger.info(f"🎧 STT: ElevenLabs {eleven_model} (lang={eleven_lang or 'auto'})")
             return stt_instance
 
         except Exception as e:
-            logger.error(f"❌ ElevenLabs STT init failed: {e}")
-            # Try minimal config without language_code and server_vad
-            try:
-                stt_instance = elevenlabs.STT(
-                    model_id="scribe_v2_realtime",
-                    api_key=eleven_key,
-                )
-                logger.warning(f"⚠️ ElevenLabs STT fallback (no lang, no vad): {e}")
-                return stt_instance
-            except Exception as e2:
-                logger.error(f"❌ ElevenLabs STT total failure: {e2} — falling back to Deepgram")
-                return deepgram.STT(model="nova-2", language=language)
+            logger.error(f"❌ ElevenLabs STT init failed: {e} — falling back to Deepgram")
+            return deepgram.STT(model="nova-2", language=language)
 
     elif provider == "openai":
         logger.info(f"🎧 STT: OpenAI Whisper (lang={language})")
@@ -421,17 +398,6 @@ async def entrypoint(ctx: JobContext):
         stt=stt,
         llm=llm_instance,
         tts=tts,
-        turn_handling=TurnHandlingOptions(
-            endpointing={
-                "mode": "dynamic",
-                "min_delay": 0.5,
-                "max_delay": 3.0,
-            },
-            interruption={
-                "enabled": True,
-                "mode": "vad",
-            },
-        ),
     )
 
     # ── Listen for transcript events ──
