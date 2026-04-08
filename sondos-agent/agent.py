@@ -445,10 +445,16 @@ async def entrypoint(ctx: JobContext):
     # ── Create Agent with system prompt ──
     agent = Agent(instructions=system_prompt)
 
+    # ── Wait for the human participant (SIP caller) ──
+    # Without this, session.start() may not bind to the SIP participant's audio
+    participant = await ctx.wait_for_participant()
+    logger.info(f"👤 Target participant: {participant.identity} → {ctx.room.name}")
+
     # ── Start the session ──
     await session.start(
         agent=agent,
         room=ctx.room,
+        participant=participant,
     )
 
     # ── Say greeting / opening message ──
