@@ -445,8 +445,8 @@ async def entrypoint(ctx: JobContext):
     # ── Create Agent with system prompt ──
     agent = Agent(instructions=system_prompt)
 
-    # ── Wait for the human participant (SIP caller) ──
-    # Without this, session.start() may not bind to the SIP participant's audio
+    # ── Wait for the human participant (SIP caller) before starting ──
+    # This ensures the session binds to the correct audio tracks
     participant = await ctx.wait_for_participant()
     logger.info(f"👤 Target participant: {participant.identity} → {ctx.room.name}")
 
@@ -454,13 +454,17 @@ async def entrypoint(ctx: JobContext):
     await session.start(
         agent=agent,
         room=ctx.room,
-        participant=participant,
     )
 
     # ── Say greeting / opening message ──
     greeting = config["greeting"]
     add_transcript("agent", greeting)
-    await session.say(greeting, allow_interruptions=True)
+    logger.info(f"🗣️ Saying greeting ({len(greeting)} chars): {greeting[:80]}...")
+    try:
+        await session.say(greeting, allow_interruptions=True)
+        logger.info("✅ Greeting delivered successfully")
+    except Exception as greet_err:
+        logger.error(f"❌ Greeting failed: {greet_err}")
 
     direction_label = "OUTBOUND" if is_outbound else "INBOUND"
     logger.info(
