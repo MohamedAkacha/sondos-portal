@@ -353,6 +353,31 @@ async def entrypoint(ctx: JobContext):
     # ── Connect to room (ensures metadata is available) ──
     await ctx.connect()
 
+    # ── SIP Inbound: Wait for room metadata (injected by webhook) ──
+    # For SIP calls, metadata is set on the participant, not the room.
+    # The backend webhook copies it to room metadata, but needs a moment.
+    if ctx.room.name.startswith("sondos-sip-") and not ctx.room.metadata:
+        logger.info("⏳ SIP room — waiting for metadata injection from backend...")
+        for attempt in range(8):  # Wait up to 8 seconds
+            await asyncio.sleep(1)
+            if ctx.room.metadata:
+                logger.info(f"✅ Room metadata received after {attempt + 1}s")
+                break
+        else:
+            # ── Last resort: check SIP participant metadata ──
+            logger.warning("⚠️ Room metadata still empty — checking participant metadata...")
+            for p in ctx.room.remote_participants.values():
+                if p.metadata:
+                    try:
+                        test = json.loads(p.metadata)
+                        if test.get("agentConfig"):
+                            logger.info(f"✅ Found agentConfig in participant {p.identity} metadata")
+                            # Manually set on room object for parse_room_config
+                            ctx.room.metadata = p.metadata
+                            break
+                    except (json.JSONDecodeError, AttributeError):
+                        pass
+
     # ── Read dynamic config from room metadata ──
     try:
         config = parse_room_config(ctx.room)

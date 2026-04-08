@@ -65,7 +65,8 @@ app.use('/api/payments/webhook', express.raw({ type: 'application/json' }), (req
 });
 
 // Raw body for LiveKit webhook signature verification
-app.use('/api/livekit/webhook', express.raw({ type: 'application/json' }), (req, res, next) => {
+// LiveKit sends Content-Type: application/webhook+json — must match all types
+app.use('/api/livekit/webhook', express.raw({ type: '*/*' }), (req, res, next) => {
   req.rawBody = req.body.toString('utf8');
   try {
     req.body = JSON.parse(req.rawBody);

@@ -332,6 +332,62 @@ exports.webhook = async (req, res) => {
           updateData
         );
         console.log(`[LiveKit Webhook] 👤 Joined: ${name} → ${roomName} ${isAgent ? '[AGENT]' : '[USER]'}`);
+
+        // ── SIP Inbound Fix: Copy participant metadata → room metadata ──
+        // LiveKit SIP dispatch rule sets metadata on the SIP *participant*, not the room.
+        // The agent reads room.metadata, so we must copy it over.
+        if (roomName.startsWith('sondos-sip-') && participant.metadata && roomService) {
+          try {
+            const partMeta = JSON.parse(participant.metadata);
+            if (partMeta.agentConfig) {
+              // Room metadata is empty — inject from SIP participant
+              const currentRoomMeta = room?.metadata || '';
+              let needsUpdate = false;
+              if (!currentRoomMeta) {
+                needsUpdate = true;
+              } else {
+                try {
+                  const existing = JSON.parse(currentRoomMeta);
+                  if (!existing.agentConfig) needsUpdate = true;
+                } catch (_) { needsUpdate = true; }
+              }
+
+              if (needsUpdate) {
+                await roomService.updateRoomMetadata(roomName, participant.metadata);
+                console.log(`[LiveKit Webhook] 📞 SIP metadata injected → room: ${roomName}`);
+              }
+            }
+          } catch (metaErr) {
+            console.error(`[LiveKit Webhook] SIP metadata injection failed: ${metaErr.message}`);
+
+            // ── Fallback: Look up agent config from DB by phone number ──
+            try {
+              const callerNumber = participant.name || participant.identity || '';
+              // Find which phone number this SIP trunk belongs to
+              const phoneDoc = await PhoneNumber.findOne({
+                sipTrunkId: { $exists: true, $ne: '' },
+                status: 'active',
+              }).sort({ updatedAt: -1 });
+
+              if (phoneDoc && phoneDoc.agentId) {
+                const agentDoc = await Agent.findById(phoneDoc.agentId);
+                if (agentDoc) {
+                  const fallbackMeta = JSON.stringify({
+                    agentConfig: agentDoc.toLiveKitConfig(),
+                    source: 'sip',
+                    phoneNumber: phoneDoc.phoneNumber,
+                    userId: phoneDoc.userId?.toString() || '',
+                  });
+                  await roomService.updateRoomMetadata(roomName, fallbackMeta);
+                  console.log(`[LiveKit Webhook] 📞 SIP metadata fallback from DB → room: ${roomName} | Agent: ${agentDoc.name}`);
+                }
+              }
+            } catch (fbErr) {
+              console.error(`[LiveKit Webhook] SIP metadata DB fallback failed: ${fbErr.message}`);
+            }
+          }
+        }
+
         break;
       }
 
