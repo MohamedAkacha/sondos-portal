@@ -232,7 +232,7 @@ async function dialContact(campaign, contact, agent, phone) {
     // ── Dial ──
     const sipResult = await livekitSip.createSipParticipant({
       sipTrunkId: outboundTrunkId,
-      sipCallTo: `sip:${destination.replace('+', '')}@${sipAddress.split('@')[1]}`,
+      sipCallTo: destination.replace('+', ''),
       roomName,
       participantIdentity: `caller-${destination.replace('+', '')}`,
       participantName: contact.name || destination,

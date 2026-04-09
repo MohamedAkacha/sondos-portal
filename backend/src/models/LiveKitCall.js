@@ -109,7 +109,7 @@ const livekitCallSchema = new mongoose.Schema({
   // ── Call Source ──
   source: {
     type: String,
-    enum: ['web', 'sip', 'api'],
+    enum: ['web', 'sip', 'api', 'outbound'],
     default: 'web',
   },
 

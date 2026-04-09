@@ -951,9 +951,8 @@ exports.initiateOutbound = async (req, res) => {
       }),
     });
 
-    // ── Step 5: Dial out via SIP (using formatted number as full SIP URI) ──
-    const sipDomain = sipAddress.split('@')[1] || sipAddress;
-    const sipCallTo = `sip:${formattedDestination}@${sipDomain}`;
+    // ── Step 5: Dial out via SIP (phone number only — LiveKit rejects full SIP URIs) ──
+    const sipCallTo = formattedDestination;
 
     const sipResult = await livekitSip.createSipParticipant({
       sipTrunkId: outboundTrunkId,
