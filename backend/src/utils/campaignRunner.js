@@ -177,7 +177,8 @@ async function dialContact(campaign, contact, agent, phone) {
     } else if (phone.provider === 'telnyx') {
       sipAddress = `${phone.phoneNumber.replace('+', '')}@sip.telnyx.com`;
     } else if (phone.provider === 'custom' && phone.customSip?.sipServer) {
-      sipAddress = `${phone.phoneNumber.replace('+', '')}@${phone.customSip.sipServer}`;
+      const port = phone.customSip.sipPort || 5060;
+      sipAddress = `${phone.phoneNumber.replace('+', '')}@${phone.customSip.sipServer}:${port}`;
     } else {
       throw new Error('Cannot determine SIP address');
     }

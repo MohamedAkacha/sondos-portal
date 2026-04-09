@@ -268,6 +268,7 @@ exports.purchaseNumber = async (req, res) => {
       providerNumberSid: purchaseResult.sid || purchaseResult.orderId || '',
       sipTrunkId: sipResult.sipTrunkId,
       sipDispatchRuleId: sipResult.sipDispatchRuleId,
+      sipOutboundTrunkId: sipResult.sipOutboundTrunkId || '',
       status: sipResult.sipTrunkId ? 'active' : 'pending',
       statusMessage: sipResult.sipTrunkId ? '' : 'SIP trunk لم يُنشأ بعد',
     });
@@ -899,7 +900,7 @@ exports.initiateOutbound = async (req, res) => {
     } else if (phone.provider === 'custom' && phone.customSip?.sipServer) {
       const server = phone.customSip.sipServer;
       const port = phone.customSip.sipPort || 5060;
-      sipAddress = `${server}:${port}`;
+      sipAddress = `${phone.phoneNumber.replace('+', '')}@${server}:${port}`;
     } else {
       return res.status(400).json({ success: false, message: 'لا يمكن تحديد عنوان SIP للمكالمات الصادرة' });
     }
@@ -950,9 +951,9 @@ exports.initiateOutbound = async (req, res) => {
       }),
     });
 
-    // ── Step 5: Dial out via SIP (using formatted number) ──
-    // LiveKit outbound trunk already has the SIP address — just send the number
-    const sipCallTo = formattedDestination;
+    // ── Step 5: Dial out via SIP (using formatted number as full SIP URI) ──
+    const sipDomain = sipAddress.split('@')[1] || sipAddress;
+    const sipCallTo = `sip:${formattedDestination}@${sipDomain}`;
 
     const sipResult = await livekitSip.createSipParticipant({
       sipTrunkId: outboundTrunkId,
