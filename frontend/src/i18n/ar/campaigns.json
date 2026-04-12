@@ -1,0 +1,32 @@
+{
+  "title": "الحملات",
+  "createCampaign": "إنشاء حملة",
+  "campaignName": "اسم الحملة",
+  "status": {
+    "draft": "مسودة",
+    "scheduled": "مجدولة",
+    "running": "جارية",
+    "completed": "مكتملة",
+    "paused": "متوقفة",
+    "failed": "فاشلة"
+  },
+  "settings": {
+    "agent": "المساعد",
+    "phoneNumber": "رقم الهاتف",
+    "schedule": "الجدول الزمني",
+    "contacts": "جهات الاتصال",
+    "maxConcurrent": "الحد الأقصى للمكالمات المتزامنة"
+  },
+  "stats": {
+    "totalContacts": "إجمالي الأرقام",
+    "called": "تم الاتصال",
+    "answered": "تم الرد",
+    "failed": "فشل",
+    "pending": "قيد الانتظار"
+  },
+  "empty": {
+    "title": "لا توجد حملات",
+    "description": "أنشئ حملة مكالمات جماعية",
+    "action": "إنشاء حملة"
+  }
+}

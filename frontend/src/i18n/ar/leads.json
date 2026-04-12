@@ -1,0 +1,63 @@
+{
+  "title": "العملاء المحتملين",
+  "subtitle": "إدارة الليدز من Sondos AI",
+  "addLead": "إضافة ليد",
+  "total": "الإجمالي",
+  "active": "نشط",
+  "vip": "VIP",
+  "blocked": "محظور",
+  "allCampaigns": "جميع الحملات",
+  "unknown": "غير معروف",
+  "noCampaigns": "لا توجد حملات",
+  "refresh": "تحديث",
+  "leadsCount": "ليد",
+  "noLeads": "لا يوجد ليدز",
+  "showAll": "عرض جميع الحملات",
+  "lead": "الليد",
+  "actions": "الإجراءات",
+  "page": "صفحة",
+  "of": "من",
+  "editLead": "تعديل الليد",
+  "addNewLead": "إضافة ليد جديد",
+  "campaign": "الحملة",
+  "selectCampaign": "اختر حملة",
+  "addField": "+ إضافة حقل",
+  "newFieldName": "اسم الحقل الجديد:",
+  "deleteLead": "حذف الليد",
+  "deleteConfirm": "حذف \"{name}\"؟",
+  "yes": "نعم",
+  "no": "لا",
+  "startCampaign": "تشغيل الحملة",
+  "stopCampaign": "إيقاف الحملة",
+  "createLead": "إضافة عميل",
+  "importCSV": "استيراد CSV",
+  "exportCSV": "تصدير CSV",
+  "fields": {
+    "name": "الاسم",
+    "phone": "الهاتف",
+    "email": "البريد",
+    "company": "الشركة",
+    "source": "المصدر",
+    "notes": "ملاحظات",
+    "status": "الحالة"
+  },
+  "statuses": {
+    "new": "جديد",
+    "contacted": "تم التواصل",
+    "qualified": "مؤهل",
+    "converted": "تم التحويل",
+    "lost": "خسارة"
+  },
+  "sources": {
+    "call": "مكالمة",
+    "chat": "محادثة",
+    "manual": "يدوي",
+    "import": "استيراد",
+    "api": "API"
+  },
+  "empty": {
+    "title": "لا يوجد عملاء محتملين",
+    "description": "سيظهر هنا العملاء المحتملين عند استخدام أداة تسجيل العملاء",
+    "action": "إضافة عميل"
+  }
+}

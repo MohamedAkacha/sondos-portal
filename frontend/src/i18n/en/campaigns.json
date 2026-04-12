@@ -1,0 +1,32 @@
+{
+  "title": "Campaigns",
+  "createCampaign": "Create Campaign",
+  "campaignName": "Campaign Name",
+  "status": {
+    "draft": "Draft",
+    "scheduled": "Scheduled",
+    "running": "Running",
+    "completed": "Completed",
+    "paused": "Paused",
+    "failed": "Failed"
+  },
+  "settings": {
+    "agent": "Agent",
+    "phoneNumber": "Phone Number",
+    "schedule": "Schedule",
+    "contacts": "Contacts",
+    "maxConcurrent": "Max Concurrent Calls"
+  },
+  "stats": {
+    "totalContacts": "Total Contacts",
+    "called": "Called",
+    "answered": "Answered",
+    "failed": "Failed",
+    "pending": "Pending"
+  },
+  "empty": {
+    "title": "No campaigns",
+    "description": "Create a bulk calling campaign",
+    "action": "Create Campaign"
+  }
+}

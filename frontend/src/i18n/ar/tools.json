@@ -1,0 +1,87 @@
+{
+  "title": "الأدوات",
+  "createTool": "إنشاء أداة جديدة",
+  "builtIn": "أدوات مدمجة",
+  "custom": "أدوات مخصصة",
+  "toolName": "اسم الأداة",
+  "functionName": "الاسم التقني",
+  "description": "الوصف (يقرأه الذكاء الاصطناعي ليعرف متى يستخدمها)",
+  "descriptionHint": "اكتب وصفاً واضحاً يشرح متى يجب استخدام هذه الأداة",
+  "parameters": {
+    "title": "المعاملات (Parameters)",
+    "add": "إضافة معامل",
+    "name": "اسم المعامل",
+    "type": "النوع",
+    "types": {
+      "string": "نص",
+      "number": "رقم",
+      "boolean": "نعم/لا",
+      "date": "تاريخ",
+      "enum": "خيارات محددة"
+    },
+    "required": "مطلوب",
+    "paramDescription": "وصف المعامل",
+    "enumValues": "القيم المتاحة (مفصولة بفاصلة)"
+  },
+  "http": {
+    "title": "إعدادات HTTP",
+    "url": "عنوان URL",
+    "urlPlaceholder": "https://api.example.com/endpoint",
+    "method": "الطريقة",
+    "headers": "Headers إضافية",
+    "addHeader": "إضافة Header",
+    "headerKey": "المفتاح",
+    "headerValue": "القيمة",
+    "bodyTemplate": "قالب الـ Body",
+    "bodyHint": "استخدم {{parameter_name}} لتضمين قيمة المعامل",
+    "timeout": "مهلة الانتظار (مللي ثانية)",
+    "responseMapping": "مسار النتيجة في الرد",
+    "responseMappingHint": "مثال: data.available_slots"
+  },
+  "behavior": {
+    "title": "السلوك",
+    "waitingMessage": "ماذا يقول المساعد أثناء الانتظار",
+    "waitingMessageDefault": "لحظة وأتحقق لك",
+    "failureMessage": "ماذا يقول إذا فشل الطلب",
+    "failureMessageDefault": "عذراً ما قدرت أنفذ هذا الطلب حالياً"
+  },
+  "test": {
+    "title": "اختبار الأداة",
+    "run": "تنفيذ",
+    "result": "النتيجة",
+    "success": "نجح الاختبار",
+    "failed": "فشل الاختبار",
+    "responseTime": "وقت الاستجابة: {{ms}} مللي ثانية"
+  },
+  "builtInTools": {
+    "knowledge_search": {
+      "name": "البحث في قاعدة المعرفة",
+      "description": "يبحث في مستندات الشركة للرد على أسئلة العملاء"
+    },
+    "capture_lead": {
+      "name": "تسجيل عميل محتمل",
+      "description": "يحفظ بيانات المتصل كعميل محتمل"
+    },
+    "transfer_to_human": {
+      "name": "تحويل لموظف",
+      "description": "يحوّل المكالمة لموظف بشري"
+    },
+    "book_appointment": {
+      "name": "حجز موعد",
+      "description": "يحجز موعداً في النظام المربوط"
+    },
+    "send_sms": {
+      "name": "إرسال SMS",
+      "description": "يرسل رسالة نصية للعميل بعد المكالمة"
+    },
+    "end_call": {
+      "name": "إنهاء المكالمة",
+      "description": "ينهي المكالمة بأدب عند اكتمال الهدف"
+    }
+  },
+  "empty": {
+    "title": "لا توجد أدوات مخصصة",
+    "description": "أنشئ أداة مخصصة لربط المساعد بأنظمتك الخارجية",
+    "action": "إنشاء أداة"
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "title": "Analytics",
+  "overview": "Overview",
+  "period": {
+    "today": "Today",
+    "week": "This Week",
+    "month": "This Month",
+    "quarter": "This Quarter",
+    "year": "This Year",
+    "custom": "Custom"
+  },
+  "kpis": {
+    "totalCalls": "Total Calls",
+    "avgDuration": "Avg Duration",
+    "satisfactionRate": "Satisfaction Rate",
+    "resolutionRate": "Resolution Rate",
+    "escalationRate": "Escalation Rate",
+    "totalLeads": "Total Leads",
+    "conversionRate": "Conversion Rate",
+    "activeChats": "Active Chats"
+  },
+  "charts": {
+    "callsOverTime": "Calls Over Time",
+    "sentimentDistribution": "Sentiment Distribution",
+    "topTopics": "Top Topics",
+    "peakHours": "Peak Hours",
+    "agentComparison": "Agent Comparison",
+    "callResults": "Call Results"
+  },
+  "reports": {
+    "generate": "Generate Report",
+    "daily": "Daily Report",
+    "weekly": "Weekly Report",
+    "monthly": "Monthly Report",
+    "exportPDF": "Export PDF",
+    "exportExcel": "Export Excel"
+  }
+}

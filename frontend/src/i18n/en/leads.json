@@ -1,0 +1,63 @@
+{
+  "title": "Leads",
+  "subtitle": "Manage your leads from Sondos AI",
+  "addLead": "Add Lead",
+  "total": "Total",
+  "active": "Active",
+  "vip": "VIP",
+  "blocked": "Blocked",
+  "allCampaigns": "All Campaigns",
+  "unknown": "Unknown",
+  "noCampaigns": "No campaigns",
+  "refresh": "Refresh",
+  "leadsCount": "leads",
+  "noLeads": "No leads found",
+  "showAll": "Show all campaigns",
+  "lead": "Lead",
+  "actions": "Actions",
+  "page": "Page",
+  "of": "of",
+  "editLead": "Edit Lead",
+  "addNewLead": "Add New Lead",
+  "campaign": "Campaign",
+  "selectCampaign": "Select Campaign",
+  "addField": "+ Add Field",
+  "newFieldName": "New field name:",
+  "deleteLead": "Delete Lead",
+  "deleteConfirm": "Delete \"{name}\"?",
+  "yes": "Yes",
+  "no": "No",
+  "startCampaign": "Start Campaign",
+  "stopCampaign": "Stop Campaign",
+  "createLead": "Add Lead",
+  "importCSV": "Import CSV",
+  "exportCSV": "Export CSV",
+  "fields": {
+    "name": "Name",
+    "phone": "Phone",
+    "email": "Email",
+    "company": "Company",
+    "source": "Source",
+    "notes": "Notes",
+    "status": "Status"
+  },
+  "statuses": {
+    "new": "New",
+    "contacted": "Contacted",
+    "qualified": "Qualified",
+    "converted": "Converted",
+    "lost": "Lost"
+  },
+  "sources": {
+    "call": "Call",
+    "chat": "Chat",
+    "manual": "Manual",
+    "import": "Import",
+    "api": "API"
+  },
+  "empty": {
+    "title": "No leads yet",
+    "description": "Leads will appear here when the capture lead tool is used",
+    "action": "Add Lead"
+  }
+}

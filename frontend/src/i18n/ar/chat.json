@@ -1,0 +1,37 @@
+{
+  "title": "المحادثات النصية",
+  "sessions": "الجلسات",
+  "messages": "الرسائل",
+  "startChat": "بدء محادثة",
+  "endChat": "إنهاء المحادثة",
+  "typeMessage": "اكتب رسالتك...",
+  "send": "إرسال",
+  "status": {
+    "active": "نشطة",
+    "ended": "منتهية",
+    "handed_off": "محوّلة لموظف"
+  },
+  "channel": {
+    "widget": "ودجت الموقع",
+    "api": "API",
+    "whatsapp": "واتساب",
+    "telegram": "تلغرام"
+  },
+  "widget": {
+    "title": "ودجت الدردشة",
+    "description": "أضف ودجت الدردشة إلى موقعك",
+    "copyCode": "نسخ الكود",
+    "customize": "تخصيص",
+    "primaryColor": "اللون الأساسي",
+    "position": "الموقع",
+    "positions": {
+      "bottom-right": "أسفل يمين",
+      "bottom-left": "أسفل يسار"
+    },
+    "preview": "معاينة"
+  },
+  "empty": {
+    "title": "لا توجد محادثات بعد",
+    "description": "ستظهر هنا جلسات الدردشة النصية عند تفعيل الودجت"
+  }
+}

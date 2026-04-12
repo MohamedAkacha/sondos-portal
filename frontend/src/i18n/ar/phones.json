@@ -1,0 +1,24 @@
+{
+  "title": "أرقام الهاتف",
+  "addNumber": "إضافة رقم",
+  "buyNumber": "شراء رقم جديد",
+  "provider": {
+    "twilio": "Twilio",
+    "telnyx": "Telnyx"
+  },
+  "status": {
+    "active": "نشط",
+    "inactive": "غير نشط",
+    "pending": "قيد الإعداد"
+  },
+  "assignToAgent": "ربط بمساعد",
+  "unassign": "إلغاء الربط",
+  "sipConfig": "إعدادات SIP",
+  "inboundCalls": "المكالمات الواردة",
+  "outboundCalls": "المكالمات الصادرة",
+  "empty": {
+    "title": "لا توجد أرقام هاتف",
+    "description": "أضف رقم هاتف لاستقبال المكالمات عبر المساعد الذكي",
+    "action": "إضافة رقم"
+  }
+}

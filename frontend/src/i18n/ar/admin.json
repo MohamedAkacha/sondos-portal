@@ -1,0 +1,23 @@
+{
+  "dashboard": "لوحة التحكم",
+  "clients": "العملاء",
+  "plans": "الباقات",
+  "reports": "التقارير",
+  "settings": "الإعدادات",
+  "title": "لوحة الإدارة",
+  "clientDetail": {
+    "title": "تفاصيل العميل",
+    "subscription": "الاشتراك",
+    "usage": "الاستخدام",
+    "agents": "المساعدين",
+    "calls": "المكالمات",
+    "payments": "المدفوعات"
+  },
+  "systemUsage": {
+    "title": "استخدام النظام",
+    "totalUsers": "إجمالي المستخدمين",
+    "activeUsers": "المستخدمين النشطين",
+    "totalCalls": "إجمالي المكالمات",
+    "totalRevenue": "إجمالي الإيرادات"
+  }
+}

@@ -1,0 +1,120 @@
+{
+  "title": "Calls",
+  "subtitle": "All inbound and outbound call records",
+  "refresh": "Refresh",
+  "search": "Search",
+  "reset": "Reset",
+  "searchPlaceholder": "Search by phone number...",
+  "totalCalls": "Total Calls",
+  "answered": "Answered",
+  "missed": "Missed",
+  "answerRate": "Answer Rate",
+  "avgDuration": "Avg Duration",
+  "inOutbound": "In / Outbound",
+  "allStatuses": "All Statuses",
+  "allTypes": "All Types",
+  "completed": "Completed",
+  "ended": "Ended",
+  "endedByCustomer": "Ended by Customer",
+  "endedByAssistant": "Ended by Assistant",
+  "noAnswer": "No Answer",
+  "failed": "Failed",
+  "busy": "Busy",
+  "inProgress": "In Progress",
+  "ringing": "Ringing",
+  "initiated": "Initiated",
+  "inbound": "Inbound",
+  "outbound": "Outbound",
+  "web": "Web",
+  "phone": "Client Phone",
+  "type": "Type",
+  "status": "Status",
+  "assistant": "Assistant",
+  "duration": "Duration",
+  "date": "Date",
+  "noCalls": "No calls found",
+  "noCallsHint": "Try changing the filters or date range",
+  "totalLabel": "calls total",
+  "viewDetails": "View details",
+  "page": "Page",
+  "of": "of",
+  "callsCount": "calls",
+  "close": "Close",
+  "callId": "Call",
+  "variables": "Variables",
+  "evaluation": "Call Evaluation",
+  "transcript": "Transcript",
+  "recording": "Call Recording",
+  "sentiment": "Sentiment",
+  "outcome": "Outcome",
+  "score": "Score",
+  "liveCalls": "Live Calls",
+  "callHistory": "Call History",
+  "direction": {
+    "inbound": "Inbound",
+    "outbound": "Outbound"
+  },
+  "source": {
+    "web": "Web",
+    "sip": "Phone",
+    "api": "API",
+    "campaign": "Campaign"
+  },
+  "callStatus": {
+    "created": "Created",
+    "active": "Active",
+    "completed": "Completed",
+    "failed": "Failed",
+    "timeout": "Timeout"
+  },
+  "detail": {
+    "transcript": "Transcript",
+    "analysis": "Analysis",
+    "extraction": "Extracted Data",
+    "recording": "Recording",
+    "config": "Agent Config"
+  },
+  "analysis": {
+    "summary": "Call Summary",
+    "sentiment": "Sentiment",
+    "sentiments": {
+      "very_positive": "Very Positive",
+      "positive": "Positive",
+      "neutral": "Neutral",
+      "negative": "Negative",
+      "very_negative": "Very Negative"
+    },
+    "intent": "Caller Intent",
+    "intents": {
+      "inquiry": "Inquiry",
+      "complaint": "Complaint",
+      "purchase": "Purchase",
+      "booking": "Booking",
+      "support": "Support",
+      "other": "Other"
+    },
+    "topics": "Topics",
+    "agentPerformance": "Agent Performance",
+    "accuracy": "Accuracy",
+    "helpfulness": "Helpfulness",
+    "professionalism": "Professionalism"
+  },
+  "extraction": {
+    "title": "Extracted Variables",
+    "noVariables": "No variables configured",
+    "configure": "Configure Variables",
+    "extracted": "Extracted",
+    "notFound": "Not mentioned"
+  },
+  "live": {
+    "title": "Live Calls Now",
+    "noActiveCalls": "No active calls",
+    "listen": "Listen",
+    "endCall": "End Call",
+    "duration": "Duration"
+  },
+  "empty": {
+    "title": "No calls yet",
+    "description": "Call records will appear here when the agent starts receiving calls"
+  }
+}

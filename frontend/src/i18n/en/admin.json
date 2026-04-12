@@ -1,0 +1,23 @@
+{
+  "dashboard": "Dashboard",
+  "clients": "Clients",
+  "plans": "Plans",
+  "reports": "Reports",
+  "settings": "Settings",
+  "title": "Admin Dashboard",
+  "clientDetail": {
+    "title": "Client Details",
+    "subscription": "Subscription",
+    "usage": "Usage",
+    "agents": "Agents",
+    "calls": "Calls",
+    "payments": "Payments"
+  },
+  "systemUsage": {
+    "title": "System Usage",
+    "totalUsers": "Total Users",
+    "activeUsers": "Active Users",
+    "totalCalls": "Total Calls",
+    "totalRevenue": "Total Revenue"
+  }
+}

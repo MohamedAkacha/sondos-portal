@@ -1,0 +1,16 @@
+{
+  "welcomeTitle": "Welcome to Sondos AI! 🎉",
+  "loginTitle": "New login 🔐",
+  "assistantCreated": "New assistant created 🤖",
+  "assistantUpdated": "Assistant updated ✏️",
+  "assistantDeleted": "Assistant deleted 🗑️",
+  "kbCreated": "New knowledge base created 📚",
+  "kbUpdated": "Knowledge base updated ✏️",
+  "kbDeleted": "Knowledge base deleted 🗑️",
+  "docCreated": "New document added 📝",
+  "docUploaded": "New file uploaded 📄",
+  "docDeleted": "Document deleted 🗑️",
+  "toolCreated": "New integration created 🔗",
+  "toolUpdated": "Integration updated ✏️",
+  "toolDeleted": "Integration deleted 🗑️"
+}

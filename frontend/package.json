@@ -1,7 +1,7 @@
 {
   "name": "sondos-portal",
   "private": true,
-  "version": "2.0.0",
+  "version": "3.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -11,10 +11,13 @@
   },
   "dependencies": {
     "@tailwindcss/postcss": "^4.1.18",
+    "i18next": "^23.7.0",
+    "i18next-browser-languagedetector": "^7.2.0",
     "livekit-client": "^2.9.1",
     "lucide-react": "^0.563.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
+    "react-i18next": "^13.5.0",
     "react-router-dom": "^7.1.1"
   },
   "devDependencies": {

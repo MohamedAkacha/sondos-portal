@@ -1,0 +1,14 @@
+{
+  "general": "An unexpected error occurred",
+  "network": "Failed to connect to server",
+  "unauthorized": "Unauthorized — please log in",
+  "forbidden": "You don't have permission for this action",
+  "notFound": "Item not found",
+  "validation": "Invalid data",
+  "limitReached": "You've reached your plan limit",
+  "paymentRequired": "Please upgrade your plan",
+  "serverError": "Server error — try again later",
+  "timeout": "Request timed out",
+  "fileTooBig": "File is too large",
+  "unsupportedFormat": "Unsupported file format"
+}

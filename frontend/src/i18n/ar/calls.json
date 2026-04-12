@@ -1,0 +1,120 @@
+{
+  "title": "المكالمات",
+  "subtitle": "سجل جميع المكالمات الواردة والصادرة",
+  "refresh": "تحديث",
+  "search": "بحث",
+  "reset": "إعادة تعيين",
+  "searchPlaceholder": "بحث برقم الهاتف...",
+  "totalCalls": "إجمالي المكالمات",
+  "answered": "تم الرد",
+  "missed": "فائتة",
+  "answerRate": "معدل الرد",
+  "avgDuration": "متوسط المدة",
+  "inOutbound": "واردة / صادرة",
+  "allStatuses": "جميع الحالات",
+  "allTypes": "جميع الأنواع",
+  "completed": "مكتملة",
+  "ended": "منتهية",
+  "endedByCustomer": "أنهاها العميل",
+  "endedByAssistant": "أنهاها المساعد",
+  "noAnswer": "لم يرد",
+  "failed": "فشلت",
+  "busy": "مشغول",
+  "inProgress": "جارية",
+  "ringing": "يرن",
+  "initiated": "بدأت",
+  "inbound": "واردة",
+  "outbound": "صادرة",
+  "web": "ويب",
+  "phone": "رقم العميل",
+  "type": "النوع",
+  "status": "الحالة",
+  "assistant": "المساعد",
+  "duration": "المدة",
+  "date": "التاريخ",
+  "noCalls": "لا توجد مكالمات",
+  "noCallsHint": "جرّب تغيير الفلاتر أو التاريخ",
+  "totalLabel": "مكالمة إجمالاً",
+  "viewDetails": "عرض التفاصيل",
+  "page": "صفحة",
+  "of": "من",
+  "callsCount": "مكالمة",
+  "close": "إغلاق",
+  "callId": "مكالمة",
+  "variables": "المتغيرات",
+  "evaluation": "تقييم المكالمة",
+  "transcript": "نص المحادثة",
+  "recording": "التسجيل الصوتي",
+  "sentiment": "المشاعر",
+  "outcome": "النتيجة",
+  "score": "النقاط",
+  "liveCalls": "المكالمات الحية",
+  "callHistory": "سجل المكالمات",
+  "direction": {
+    "inbound": "واردة",
+    "outbound": "صادرة"
+  },
+  "source": {
+    "web": "ويب",
+    "sip": "هاتف",
+    "api": "API",
+    "campaign": "حملة"
+  },
+  "callStatus": {
+    "created": "منشأة",
+    "active": "جارية",
+    "completed": "مكتملة",
+    "failed": "فاشلة",
+    "timeout": "انتهت المهلة"
+  },
+  "detail": {
+    "transcript": "نص المحادثة",
+    "analysis": "التحليل",
+    "extraction": "البيانات المستخرجة",
+    "recording": "التسجيل",
+    "config": "إعدادات المساعد"
+  },
+  "analysis": {
+    "summary": "ملخص المكالمة",
+    "sentiment": "الانطباع",
+    "sentiments": {
+      "very_positive": "إيجابي جداً",
+      "positive": "إيجابي",
+      "neutral": "محايد",
+      "negative": "سلبي",
+      "very_negative": "سلبي جداً"
+    },
+    "intent": "هدف المتصل",
+    "intents": {
+      "inquiry": "استفسار",
+      "complaint": "شكوى",
+      "purchase": "شراء",
+      "booking": "حجز",
+      "support": "دعم",
+      "other": "أخرى"
+    },
+    "topics": "المواضيع",
+    "agentPerformance": "أداء المساعد",
+    "accuracy": "الدقة",
+    "helpfulness": "المساعدة",
+    "professionalism": "المهنية"
+  },
+  "extraction": {
+    "title": "المتغيرات المستخرجة",
+    "noVariables": "لم يتم تعريف متغيرات للاستخراج",
+    "configure": "إعداد المتغيرات",
+    "extracted": "تم الاستخراج",
+    "notFound": "لم يُذكر"
+  },
+  "live": {
+    "title": "المكالمات الحية الآن",
+    "noActiveCalls": "لا توجد مكالمات جارية حالياً",
+    "listen": "استماع",
+    "endCall": "إنهاء المكالمة",
+    "duration": "المدة"
+  },
+  "empty": {
+    "title": "لا توجد مكالمات بعد",
+    "description": "ستظهر هنا سجلات المكالمات عند بدء استخدام المساعد"
+  }
+}

@@ -1,0 +1,37 @@
+{
+  "title": "Chat Sessions",
+  "sessions": "Sessions",
+  "messages": "Messages",
+  "startChat": "Start Chat",
+  "endChat": "End Chat",
+  "typeMessage": "Type your message...",
+  "send": "Send",
+  "status": {
+    "active": "Active",
+    "ended": "Ended",
+    "handed_off": "Handed Off"
+  },
+  "channel": {
+    "widget": "Website Widget",
+    "api": "API",
+    "whatsapp": "WhatsApp",
+    "telegram": "Telegram"
+  },
+  "widget": {
+    "title": "Chat Widget",
+    "description": "Add a chat widget to your website",
+    "copyCode": "Copy Code",
+    "customize": "Customize",
+    "primaryColor": "Primary Color",
+    "position": "Position",
+    "positions": {
+      "bottom-right": "Bottom Right",
+      "bottom-left": "Bottom Left"
+    },
+    "preview": "Preview"
+  },
+  "empty": {
+    "title": "No chat sessions yet",
+    "description": "Chat sessions will appear here when the widget is activated"
+  }
+}

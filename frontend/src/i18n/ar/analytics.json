@@ -1,0 +1,38 @@
+{
+  "title": "التحليلات",
+  "overview": "نظرة عامة",
+  "period": {
+    "today": "اليوم",
+    "week": "هذا الأسبوع",
+    "month": "هذا الشهر",
+    "quarter": "هذا الربع",
+    "year": "هذه السنة",
+    "custom": "فترة مخصصة"
+  },
+  "kpis": {
+    "totalCalls": "إجمالي المكالمات",
+    "avgDuration": "متوسط المدة",
+    "satisfactionRate": "معدل الرضا",
+    "resolutionRate": "معدل الحل",
+    "escalationRate": "معدل التصعيد",
+    "totalLeads": "العملاء المحتملين",
+    "conversionRate": "معدل التحويل",
+    "activeChats": "المحادثات النشطة"
+  },
+  "charts": {
+    "callsOverTime": "المكالمات عبر الوقت",
+    "sentimentDistribution": "توزيع الانطباعات",
+    "topTopics": "أكثر المواضيع تكراراً",
+    "peakHours": "أوقات الذروة",
+    "agentComparison": "مقارنة المساعدين",
+    "callResults": "نتائج المكالمات"
+  },
+  "reports": {
+    "generate": "إنشاء تقرير",
+    "daily": "تقرير يومي",
+    "weekly": "تقرير أسبوعي",
+    "monthly": "تقرير شهري",
+    "exportPDF": "تصدير PDF",
+    "exportExcel": "تصدير Excel"
+  }
+}

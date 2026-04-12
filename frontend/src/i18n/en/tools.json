@@ -1,0 +1,87 @@
+{
+  "title": "Tools",
+  "createTool": "Create New Tool",
+  "builtIn": "Built-in Tools",
+  "custom": "Custom Tools",
+  "toolName": "Tool Name",
+  "functionName": "Function Name",
+  "description": "Description (read by AI to know when to use it)",
+  "descriptionHint": "Write a clear description of when this tool should be used",
+  "parameters": {
+    "title": "Parameters",
+    "add": "Add Parameter",
+    "name": "Parameter Name",
+    "type": "Type",
+    "types": {
+      "string": "Text",
+      "number": "Number",
+      "boolean": "Yes/No",
+      "date": "Date",
+      "enum": "Options"
+    },
+    "required": "Required",
+    "paramDescription": "Description",
+    "enumValues": "Available values (comma separated)"
+  },
+  "http": {
+    "title": "HTTP Settings",
+    "url": "URL",
+    "urlPlaceholder": "https://api.example.com/endpoint",
+    "method": "Method",
+    "headers": "Additional Headers",
+    "addHeader": "Add Header",
+    "headerKey": "Key",
+    "headerValue": "Value",
+    "bodyTemplate": "Body Template",
+    "bodyHint": "Use {{parameter_name}} to include parameter value",
+    "timeout": "Timeout (ms)",
+    "responseMapping": "Response Path",
+    "responseMappingHint": "Example: data.available_slots"
+  },
+  "behavior": {
+    "title": "Behavior",
+    "waitingMessage": "What the agent says while waiting",
+    "waitingMessageDefault": "One moment, let me check",
+    "failureMessage": "What the agent says on failure",
+    "failureMessageDefault": "Sorry, I couldn't process that request right now"
+  },
+  "test": {
+    "title": "Test Tool",
+    "run": "Run",
+    "result": "Result",
+    "success": "Test passed",
+    "failed": "Test failed",
+    "responseTime": "Response time: {{ms}}ms"
+  },
+  "builtInTools": {
+    "knowledge_search": {
+      "name": "Knowledge Search",
+      "description": "Searches company documents to answer questions"
+    },
+    "capture_lead": {
+      "name": "Capture Lead",
+      "description": "Saves caller data as a lead"
+    },
+    "transfer_to_human": {
+      "name": "Transfer to Human",
+      "description": "Transfers the call to a human agent"
+    },
+    "book_appointment": {
+      "name": "Book Appointment",
+      "description": "Books an appointment in the connected system"
+    },
+    "send_sms": {
+      "name": "Send SMS",
+      "description": "Sends a text message to the client"
+    },
+    "end_call": {
+      "name": "End Call",
+      "description": "Ends the call politely when the goal is achieved"
+    }
+  },
+  "empty": {
+    "title": "No custom tools",
+    "description": "Create a custom tool to connect the agent to your external systems",
+    "action": "Create Tool"
+  }
+}

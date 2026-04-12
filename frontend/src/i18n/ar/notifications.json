@@ -1,0 +1,16 @@
+{
+  "welcomeTitle": "مرحباً بك في Sondos AI! 🎉",
+  "loginTitle": "تسجيل دخول جديد 🔐",
+  "assistantCreated": "تم إنشاء مساعد جديد 🤖",
+  "assistantUpdated": "تم تحديث المساعد ✏️",
+  "assistantDeleted": "تم حذف المساعد 🗑️",
+  "kbCreated": "تم إنشاء قاعدة معرفة جديدة 📚",
+  "kbUpdated": "تم تحديث قاعدة المعرفة ✏️",
+  "kbDeleted": "تم حذف قاعدة المعرفة 🗑️",
+  "docCreated": "تم إضافة مستند جديد 📝",
+  "docUploaded": "تم رفع ملف جديد 📄",
+  "docDeleted": "تم حذف مستند 🗑️",
+  "toolCreated": "تم إنشاء أداة ربط جديدة 🔗",
+  "toolUpdated": "تم تحديث أداة الربط ✏️",
+  "toolDeleted": "تم حذف أداة الربط 🗑️"
+}

@@ -1,0 +1,24 @@
+{
+  "title": "Phone Numbers",
+  "addNumber": "Add Number",
+  "buyNumber": "Buy New Number",
+  "provider": {
+    "twilio": "Twilio",
+    "telnyx": "Telnyx"
+  },
+  "status": {
+    "active": "Active",
+    "inactive": "Inactive",
+    "pending": "Pending"
+  },
+  "assignToAgent": "Assign to Agent",
+  "unassign": "Unassign",
+  "sipConfig": "SIP Settings",
+  "inboundCalls": "Inbound Calls",
+  "outboundCalls": "Outbound Calls",
+  "empty": {
+    "title": "No phone numbers",
+    "description": "Add a phone number to receive calls through the AI agent",
+    "action": "Add Number"
+  }
+}

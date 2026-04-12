@@ -1,37 +1,56 @@
-import { createContext, useState, useEffect, useCallback } from 'react';
-import ar from '@/i18n/ar.json';
-import en from '@/i18n/en.json';
-
-const translations = { ar, en };
+import { createContext, useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
+import i18n from '@/i18n/index';
 
 export const LanguageContext = createContext();
 
 export function LanguageProvider({ children }) {
-  const [lang, setLang] = useState(() => localStorage.getItem('language') || 'ar');
+  const { t: i18nT, i18n: i18nInstance } = useTranslation();
 
+  const lang = i18nInstance.language || 'ar';
+
+  // Apply RTL/LTR + font on language change
   useEffect(() => {
-    localStorage.setItem('language', lang);
-    document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr';
+    const isRTL = lang === 'ar';
+    document.documentElement.dir = isRTL ? 'rtl' : 'ltr';
     document.documentElement.lang = lang;
+    document.documentElement.classList.toggle('rtl', isRTL);
+    document.documentElement.classList.toggle('ltr', !isRTL);
   }, [lang]);
 
-  const toggleLanguage = () => setLang(prev => prev === 'ar' ? 'en' : 'ar');
+  // Change language
+  const setLang = useCallback((newLang) => {
+    i18nInstance.changeLanguage(newLang);
+    localStorage.setItem('language', newLang);
+  }, [i18nInstance]);
 
-  const t = useCallback((key) => {
-    const keys = key.split('.');
-    let value = translations[lang];
-    for (const k of keys) {
-      if (value && typeof value === 'object' && k in value) {
-        value = value[k];
-      } else {
-        return key;
-      }
+  // Toggle between AR/EN
+  const toggleLanguage = useCallback(() => {
+    const newLang = lang === 'ar' ? 'en' : 'ar';
+    setLang(newLang);
+  }, [lang, setLang]);
+
+  // Backward-compatible t() function
+  // Supports both old {n} interpolation and new {{n}} interpolation
+  const t = useCallback((key, params) => {
+    if (params) {
+      // Convert old-style params to i18next format
+      return i18nT(key, params);
     }
-    return value;
-  }, [lang]);
+    return i18nT(key);
+  }, [i18nT]);
 
   return (
-    <LanguageContext.Provider value={{ lang, setLang, toggleLanguage, t, isAr: lang === 'ar' }}>
+    <LanguageContext.Provider value={{
+      lang,
+      setLang,
+      toggleLanguage,
+      t,
+      isAr: lang === 'ar',
+      isEn: lang === 'en',
+      dir: lang === 'ar' ? 'rtl' : 'ltr',
+      i18n: i18nInstance,
+    }}>
       {children}
     </LanguageContext.Provider>
   );
