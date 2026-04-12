@@ -1,9 +1,12 @@
 // =====================================================
-// Sondos AI Backend — Express App (PRODUCTION READY)
+// Sondos AI Backend — Express App (v2 Architecture)
 // =====================================================
 const express = require('express');
 const path = require('path');
 const cors = require('cors');
+const helmet = require('helmet');
+const mongoSanitize = require('express-mongo-sanitize');
+const hpp = require('hpp');
 const { errorHandler, notFound } = require('./middleware/errorHandler');
 const { loginLimiter, registerLimiter, apiLimiter } = require('./middleware/rateLimiter');
 
@@ -12,7 +15,6 @@ const authRoutes = require('./routes/auth.routes');
 const userRoutes = require('./routes/user.routes');
 const adminRoutes = require('./routes/admin.routes');
 const notificationRoutes = require('./routes/notification.routes');
-const sondosRoutes = require('./routes/sondos.routes');
 const paymentRoutes = require('./routes/payment.routes');
 const livekitRoutes = require('./routes/livekit.routes');
 const publicRoutes = require('./routes/public.routes');
@@ -26,6 +28,11 @@ const app = express();
 // ✅ IMPORTANT FOR RENDER + RATE LIMIT
 app.set('trust proxy', 1);
 
+// ==================== Security ====================
+app.use(helmet());
+app.use(mongoSanitize());
+app.use(hpp());
+
 // ==================== CORS — Environment-aware ====================
 const isProduction = process.env.NODE_ENV === 'production';
 
@@ -36,20 +43,18 @@ const allowedOrigins = isProduction
 
 app.use(cors({
   origin: (origin, callback) => {
-    // In production: allow same-origin (no origin header) since frontend is served from same server
     if (!origin) return callback(null, true);
 
     if (allowedOrigins.includes(origin)) {
       return callback(null, true);
     }
 
-    // In dev, allow all; in production, block unknown origins
     if (!isProduction) return callback(null, true);
     return callback(new Error('غير مسموح من هذا المصدر (CORS)'));
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  allowedHeaders: ['Content-Type', 'Authorization', 'Accept-Language']
 }));
 
 // ==================== Body Parsing ====================
@@ -65,7 +70,6 @@ app.use('/api/payments/webhook', express.raw({ type: 'application/json' }), (req
 });
 
 // Raw body for LiveKit webhook signature verification
-// LiveKit sends Content-Type: application/webhook+json — must match all types
 app.use('/api/livekit/webhook', express.raw({ type: '*/*' }), (req, res, next) => {
   req.rawBody = req.body.toString('utf8');
   try {
@@ -92,6 +96,7 @@ app.get('/api/health', (req, res) => {
   res.json({
     success: true,
     status: 'healthy',
+    version: '3.0.0',
     timestamp: new Date().toISOString(),
   });
 });
@@ -112,9 +117,6 @@ app.use('/api/admin', adminRoutes);
 
 // Notification routes
 app.use('/api/notifications', notificationRoutes);
-
-// Sondos API Proxy (Frontend → Backend → Sondos)
-app.use('/api/sondos', sondosRoutes);
 
 // Payment routes (Moyasar)
 app.use('/api/payments', paymentRoutes);
@@ -142,24 +144,20 @@ app.all('/api/*', (req, res) => {
 if (isProduction) {
   const frontendDist = path.join(__dirname, '../../frontend/dist');
 
-  // Serve static files (JS, CSS, images)
   app.use(express.static(frontendDist));
 
-  // SPA Fallback — React Router handles all non-API routes
   app.get('*', (req, res) => {
     res.sendFile(path.join(frontendDist, 'index.html'));
   });
 } else {
-  // Dev: show API info on root
   app.get('/', (req, res) => {
     res.json({
       success: true,
       message: 'Sondos AI Backend API',
-      version: '2.1.0',
+      version: '3.0.0',
     });
   });
 
-  // Error Handling (dev only — production uses SPA fallback)
   app.use(notFound);
 }
 
