@@ -22,6 +22,8 @@ const agentRoutes = require('./routes/agent.routes');
 const campaignRoutes = require('./routes/campaign.routes');
 const phoneRoutes = require('./routes/phone.routes');
 const voiceRoutes = require('./routes/voice.routes');
+const toolRoutes = require('./routes/tool.routes');
+
 
 const app = express();
 
@@ -131,6 +133,7 @@ app.use('/api/agents', agentRoutes);
 app.use('/api/phones', phoneRoutes);
 app.use('/api/campaigns', campaignRoutes);
 app.use('/api/voices', voiceRoutes);
+app.use('/api/tools', toolRoutes);
 
 // Public routes (external systems — API Key auth, no user token)
 app.use('/api/public', publicRoutes);

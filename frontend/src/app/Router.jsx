@@ -39,6 +39,11 @@ import AdminPlansPage from '@/pages/admin/AdminPlansPage';
 import AdminReportsPage from '@/pages/admin/AdminReportsPage';
 import AdminSettingsPage from '@/pages/admin/AdminSettingsPage';
 
+
+import ToolsPage from '@/pages/client/ToolsPage';
+import CreateToolPage from '@/pages/client/CreateToolPage';
+
+
 // ── Route Guards ──
 
 function GuestOnly({ children }) {
@@ -97,6 +102,8 @@ export default function Router() {
           <Route path="phones"             element={<PhoneNumbersPage />} />
           <Route path="campaigns"          element={<CampaignsPage />} />
           <Route path="voice-clone"         element={<VoiceClonePage />} />
+          <Route path="tools"              element={<ToolsPage />} />
+          <Route path="tools/create"       element={<CreateToolPage />} />
 
           {/* Redirects: old routes → settings tabs */}
           <Route path="balance"      element={<Navigate to="/settings?tab=balance" replace />} />
