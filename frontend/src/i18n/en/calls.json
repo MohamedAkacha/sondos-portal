@@ -97,7 +97,8 @@
     "agentPerformance": "Agent Performance",
     "accuracy": "Accuracy",
     "helpfulness": "Helpfulness",
-    "professionalism": "Professionalism"
+    "professionalism": "Professionalism",
+    "overall": "Overall"
   },
   "extraction": {
     "title": "Extracted Variables",

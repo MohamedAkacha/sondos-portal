@@ -49,3 +49,28 @@ export async function apiCall(endpoint, options = {}) {
 
   return data;
 }
+
+
+// ── Axios-like wrapper for new API files ──
+const httpClient = {
+  get: (url, config = {}) => {
+    const params = config.params ? '?' + new URLSearchParams(config.params).toString() : '';
+    return apiCall(url + params).then(data => ({ data }));
+  },
+  post: (url, body, config = {}) => {
+    if (body instanceof FormData) {
+      const token = getToken();
+      return fetch(`/api${url}`, {
+        method: 'POST',
+        headers: { ...(token && { 'Authorization': `Bearer ${token}` }) },
+        body,
+      }).then(r => r.json()).then(data => ({ data }));
+    }
+    return apiCall(url, { method: 'POST', body: JSON.stringify(body) }).then(data => ({ data }));
+  },
+  put: (url, body) => apiCall(url, { method: 'PUT', body: JSON.stringify(body) }).then(data => ({ data })),
+  patch: (url, body) => apiCall(url, { method: 'PATCH', body: JSON.stringify(body) }).then(data => ({ data })),
+  delete: (url) => apiCall(url, { method: 'DELETE' }).then(data => ({ data })),
+};
+
+export default httpClient;

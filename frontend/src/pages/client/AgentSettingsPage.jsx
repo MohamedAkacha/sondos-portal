@@ -12,12 +12,19 @@ import {
   Volume2, Globe, Clock, ChevronDown, ChevronUp, Info,
   Play, RotateCcw, Send, Trash2,
   Phone, PhoneIncoming, PhoneOutgoing, Activity, Wifi, XCircle,
+  Wrench, BookOpen, FileSearch, UserCheck, Key, Webhook,
 } from "lucide-react";
 import { useTheme } from "@/hooks/useTheme";
 import { useLanguage } from "@/hooks/useLanguage";
 import { getAgent, updateAgent, chatWithAgent, suggestContent, getElevenLabsVoices } from "@/services/api/agentAPI";
 import { phoneAPI } from "@/services/api/phoneAPI";
 import { listLivekitCalls } from "@/services/api/livekitAPI";
+// v2 tabs
+import ToolsTab from '@/components/agent-tabs/ToolsTab';
+import KnowledgeTab from '@/components/agent-tabs/KnowledgeTab';
+import ExtractionTab from '@/components/agent-tabs/ExtractionTab';
+import HandoffTab from '@/components/agent-tabs/HandoffTab';
+import ChatConfigTab from '@/components/agent-tabs/ChatConfigTab';
 
 // ── Constants ──
 const ROLES = [
@@ -1435,6 +1442,12 @@ export default function AgentSettingsPage() {
     { key: 'phone',       label: 'الهاتف',   icon: Phone },
     ...(isOutbound ? [{ key: 'outbound', label: 'الصادرة', icon: PhoneOutgoing }] : []),
     { key: 'chat',        label: 'المحادثة', icon: MessageSquare },
+    // v2 tabs
+    { key: 'tools',       label: 'الأدوات',  icon: Wrench },
+    { key: 'knowledge',   label: 'المعرفة',  icon: BookOpen },
+    { key: 'extraction',  label: 'الاستخراج', icon: FileSearch },
+    { key: 'handoff',     label: 'التحويل',  icon: UserCheck },
+    { key: 'chatConfig',  label: 'الودجت',   icon: Webhook },
   ];
 
   // ── Load agent ──
@@ -1611,6 +1624,23 @@ export default function AgentSettingsPage() {
         }} />}
         {activeTab === 'outbound' && <OutboundTab agent={agent} isDark={isDark} />}
         {activeTab === 'chat' && <ChatTab agent={agent} isDark={isDark} />}
+
+        {/* ── v2 Tabs ── */}
+        {activeTab === 'tools' && <ToolsTab agent={agent} onSave={async (data) => {
+          try { const res = await updateAgent(id, data); if (res.success) setAgent(res.agent); } catch(e) { console.error(e); }
+        }} />}
+        {activeTab === 'knowledge' && <KnowledgeTab agent={agent} onSave={async (data) => {
+          try { const res = await updateAgent(id, data); if (res.success) setAgent(res.agent); } catch(e) { console.error(e); }
+        }} />}
+        {activeTab === 'extraction' && <ExtractionTab agent={agent} onSave={async (data) => {
+          try { const res = await updateAgent(id, data); if (res.success) setAgent(res.agent); } catch(e) { console.error(e); }
+        }} />}
+        {activeTab === 'handoff' && <HandoffTab agent={agent} onSave={async (data) => {
+          try { const res = await updateAgent(id, data); if (res.success) setAgent(res.agent); } catch(e) { console.error(e); }
+        }} />}
+        {activeTab === 'chatConfig' && <ChatConfigTab agent={agent} onSave={async (data) => {
+          try { const res = await updateAgent(id, data); if (res.success) setAgent(res.agent); } catch(e) { console.error(e); }
+        }} />}
       </div>
     </div>
   );

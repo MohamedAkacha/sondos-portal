@@ -9,8 +9,18 @@ import {
 } from "lucide-react";
 import { useTheme } from "@/hooks/useTheme";
 import { useLanguage } from "@/hooks/useLanguage";
-import { callsAPI } from "@/services/api/sondosAPI";
-import LiveKitCallsPage from "./LiveKitCallsPage";
+// v2: Direct fetch from livekit endpoint
+const callsAPI = {
+  getAll: async (params = {}) => {
+    const token = localStorage.getItem('auth_token');
+    const query = new URLSearchParams({ page: params.page || 1, limit: params.per_page || 30, ...(params.type && params.type !== 'all' ? { direction: params.type } : {}) }).toString();
+    const res = await fetch(`/api/livekit/calls?${query}`, { headers: { Authorization: `Bearer ${token}` } });
+    const json = await res.json();
+    const calls = json.data || json.calls || [];
+    return { data: calls.map(c => ({ ...c, id: c._id || c.id, phone_number: c.phoneNumber || c.destination, type: c.direction, duration: c.durationSeconds })), total: json.total || calls.length, current_page: parseInt(params.page) || 1, last_page: Math.ceil((json.total || calls.length) / (params.per_page || 30)) };
+  }
+};
+// v2: LiveKitCallsPage removed — CallsPage now shows livekit data directly
 
 // ─── Helpers ──────────────────────────────────────────────────
 const isAnswered = (s) =>
@@ -702,64 +712,8 @@ function AutoCallsContent() {
   );
 }
 // ═══════════════════════════════════════════════════════
-// Calls Page Wrapper — Tabs: AutoCalls | LiveKit
+// Calls Page — v2: Direct LiveKit calls (no tabs)
 // ═══════════════════════════════════════════════════════
 export default function CallsPage() {
-  const { isDark } = useTheme();
-  const { t } = useLanguage();
-  const [searchParams] = useSearchParams();
-  const phoneFilter = searchParams.get('phoneNumber');
-  const [activeTab, setActiveTab] = useState(phoneFilter ? "livekit" : "autocalls");
-
-  const tabs = [
-    { id: "autocalls", label: t('calls.title') || "المكالمات", icon: Phone },
-    { id: "livekit",   label: "اختبار LiveKit",                 icon: Mic },
-  ];
-
-  return (
-    <div className="space-y-6">
-      {/* ── Header ── */}
-      <div>
-        <h1 className={`text-3xl font-bold ${isDark ? "text-white" : "text-gray-900"}`}>
-          {t('calls.title')}
-        </h1>
-        <p className={`mt-1 ${isDark ? "text-gray-400" : "text-gray-500"}`}>
-          {t('calls.subtitle')}
-        </p>
-      </div>
-
-      {/* ── Tabs ── */}
-      <div className={`flex gap-1 p-1 rounded-xl border ${
-        isDark ? "bg-[#0a0a0b] border-[#1f1f23]" : "bg-gray-100 border-gray-200"
-      }`}>
-        {tabs.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium transition-all ${
-              activeTab === tab.id
-                ? isDark
-                  ? "bg-[#1a1a1d] text-white shadow-sm"
-                  : "bg-white text-gray-900 shadow-sm"
-                : isDark
-                  ? "text-gray-500 hover:text-gray-300"
-                  : "text-gray-500 hover:text-gray-700"
-            }`}
-          >
-            <tab.icon className="w-4 h-4" />
-            {tab.label}
-            {tab.id === "livekit" && (
-              <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
-                isDark ? "bg-cyan-500/20 text-cyan-400" : "bg-cyan-100 text-cyan-600"
-              }`}>TEST</span>
-            )}
-          </button>
-        ))}
-      </div>
-
-      {/* ── Tab Content ── */}
-      {activeTab === "autocalls" && <AutoCallsContent />}
-      {activeTab === "livekit" && <LiveKitCallsPage />}
-    </div>
-  );
+  return <AutoCallsContent />;
 }

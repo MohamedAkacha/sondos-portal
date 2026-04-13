@@ -97,7 +97,8 @@
     "agentPerformance": "أداء المساعد",
     "accuracy": "الدقة",
     "helpfulness": "المساعدة",
-    "professionalism": "المهنية"
+    "professionalism": "المهنية",
+    "overall": "الأداء العام"
   },
   "extraction": {
     "title": "المتغيرات المستخرجة",

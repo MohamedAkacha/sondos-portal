@@ -7,7 +7,14 @@ import {
 } from "lucide-react";
 import { useTheme } from "@/hooks/useTheme";
 import { useLanguage } from "@/hooks/useLanguage";
-import { toolsAPI } from "@/services/api/sondosAPI";
+import toolAPI from "@/services/api/toolAPI";
+// v2: Compatibility wrapper
+const toolsAPI = {
+  getAll: async () => { const res = await toolAPI.getAll(); return { data: res.data?.data || [] }; },
+  delete: async (id) => toolAPI.delete(id),
+  update: async (id, data) => toolAPI.update(id, data),
+  create: async (data) => toolAPI.create(data),
+};
 
 const HTTP_METHODS = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'];
 const PARAM_TYPES = ['string', 'number', 'boolean', 'array', 'object'];

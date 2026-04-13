@@ -1,7 +1,14 @@
 import { useState, useEffect, useRef } from "react";
 import { Mic, Play, Pause, Check, Loader2, AlertCircle, Search, Filter, ChevronDown, Volume2 } from "lucide-react";
 import { useTheme } from "@/hooks/useTheme";
-import { assistantsAPI } from "@/services/api/sondosAPI";
+// v2: Direct fetch instead of sondosAPI
+const assistantsAPI = {
+  getVoices: async () => {
+    const token = localStorage.getItem('auth_token');
+    const res = await fetch('/api/voices/elevenlabs', { headers: { Authorization: `Bearer ${token}` } });
+    return res.json();
+  }
+};
 
 export default function VoicesPage() {
   const { isDark } = useTheme();

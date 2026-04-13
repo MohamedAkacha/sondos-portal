@@ -186,6 +186,69 @@ const agentSchema = new mongoose.Schema({
     lastCallAt: { type: Date, default: null },
   },
 
+  // ══════════════════════════════════════════
+  // v2 Fields — Tools, Knowledge, Extraction, Chat, Handoff
+  // ══════════════════════════════════════════
+
+  // ── Linked Tools (which tools this agent can call) ──
+  toolIds: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Tool',
+  }],
+
+  // ── Linked Knowledge Bases (for RAG search) ──
+  knowledgeBaseIds: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'KnowledgeBase',
+  }],
+
+  // ── Chat Config (text chat settings) ──
+  chatConfig: {
+    enabled: { type: Boolean, default: false },
+    widgetEnabled: { type: Boolean, default: false },
+    widgetColor: { type: String, default: '#14b8a6' },
+    widgetPosition: { type: String, enum: ['bottom-right', 'bottom-left'], default: 'bottom-right' },
+    widgetGreeting: { type: String, default: '' },
+    maxSessionMessages: { type: Number, default: 100 },
+  },
+
+  // ── Extraction Config (post-call variable extraction) ──
+  extractionConfig: {
+    enabled: { type: Boolean, default: false },
+    variables: [{
+      name: { type: String, required: true },
+      type: { type: String, enum: ['string', 'number', 'boolean', 'date', 'email', 'phone'], default: 'string' },
+      description: { type: String, default: '' },
+      required: { type: Boolean, default: false },
+      enumValues: [String],
+    }],
+    postExtractionWebhook: {
+      enabled: { type: Boolean, default: false },
+      url: { type: String, default: '' },
+      headers: [{ key: String, value: String }],
+    },
+  },
+
+  // ── Handoff Config (when to transfer to human) ──
+  handoffConfig: {
+    enabled: { type: Boolean, default: false },
+    triggers: [{
+      type: String,
+      enum: ['customer_request', 'agent_unsure', 'negative_sentiment', 'max_turns', 'keyword'],
+    }],
+    maxTurnsBeforeHandoff: { type: Number, default: 10 },
+    handoffKeywords: [String],
+    handoffMessage: { type: String, default: 'سأحولك الآن لموظف مختص. يرجى الانتظار.' },
+  },
+
+  // ── Guardrails (content safety) ──
+  guardrails: {
+    enabled: { type: Boolean, default: false },
+    blockedTopics: [String],
+    maxResponseLength: { type: Number, default: 500 },
+    requirePoliteness: { type: Boolean, default: true },
+  },
+
   // ── Template used to create this agent ──
   templateId: {
     type: String,
@@ -342,6 +405,13 @@ agentSchema.methods.toLiveKitConfig = function () {
       timezone: wh?.timezone || 'Asia/Riyadh',
       schedule: wh?.schedule || {},
     },
+    // v2 — Tools, Knowledge, Extraction, Handoff, Guardrails
+    toolIds: this.toolIds || [],
+    knowledgeBaseIds: this.knowledgeBaseIds || [],
+    extractionConfig: this.extractionConfig || { enabled: false },
+    handoffConfig: this.handoffConfig || { enabled: false },
+    guardrails: this.guardrails || { enabled: false },
+    chatConfig: this.chatConfig || { enabled: false },
   };
 };
 
@@ -368,6 +438,13 @@ agentSchema.methods.toPublicJSON = function () {
     maxCallDuration: this.maxCallDuration,
     stats: this.stats,
     templateId: this.templateId,
+    // v2 fields
+    toolIds: this.toolIds,
+    knowledgeBaseIds: this.knowledgeBaseIds,
+    chatConfig: this.chatConfig,
+    extractionConfig: this.extractionConfig,
+    handoffConfig: this.handoffConfig,
+    guardrails: this.guardrails,
     createdAt: this.createdAt,
     updatedAt: this.updatedAt,
   };

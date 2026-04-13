@@ -7,7 +7,21 @@ import {
 } from "lucide-react";
 import { useTheme } from "@/hooks/useTheme";
 import { useLanguage } from "@/hooks/useLanguage";
-import { leadsAPI, campaignsAPI, hasApiKey } from "@/services/api/sondosAPI";
+import leadAPI from "@/services/api/leadAPI";
+// v2: Compatibility wrappers
+const _fetch = async (url, opts = {}) => { const token = localStorage.getItem('auth_token'); const res = await fetch(url, { ...opts, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, ...opts.headers } }); return res.json(); };
+const leadsAPI = {
+  getAll: async (params = {}) => { const res = await leadAPI.getAll(params); const d = res.data?.data || {}; return { data: d.leads || [], total: d.total || 0, current_page: d.page || 1, last_page: d.totalPages || 1 }; },
+  delete: async (id) => leadAPI.delete(id),
+  update: async (id, data) => leadAPI.update(id, data),
+  create: async (data) => leadAPI.create(data),
+};
+const campaignsAPI = {
+  getAll: async () => { const d = await _fetch('/api/campaigns'); return { data: d.data || d.campaigns || [] }; },
+  start: async (id) => _fetch(`/api/campaigns/${id}/start`, { method: 'POST' }),
+  stop: async (id) => _fetch(`/api/campaigns/${id}/stop`, { method: 'POST' }),
+};
+const hasApiKey = () => true;
 
 const formatValue = (value, key) => {
   if (value === null || value === undefined) return '-';

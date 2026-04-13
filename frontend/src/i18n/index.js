@@ -2,7 +2,11 @@ import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
 import LanguageDetector from 'i18next-browser-languagedetector';
 
-// ── Arabic namespaces ──
+// ── Legacy translations (old page keys: login.*, asst.*, over.*, dash.*, etc.) ──
+import arLegacy from './ar/_legacy.json';
+import enLegacy from './en/_legacy.json';
+
+// ── New namespace files ──
 import arCommon from './ar/common.json';
 import arAuth from './ar/auth.json';
 import arDashboard from './ar/dashboard.json';
@@ -23,7 +27,6 @@ import arIntegrations from './ar/integrations.json';
 import arErrors from './ar/errors.json';
 import arValidation from './ar/validation.json';
 
-// ── English namespaces ──
 import enCommon from './en/common.json';
 import enAuth from './en/auth.json';
 import enDashboard from './en/dashboard.json';
@@ -44,38 +47,72 @@ import enIntegrations from './en/integrations.json';
 import enErrors from './en/errors.json';
 import enValidation from './en/validation.json';
 
-// ── Build flat resources for backward compatibility ──
-// Merges all namespaces into a single object so t('sidebar.overview') still works
-function flatMerge(...objects) {
-  const result = {};
-  for (const obj of objects) {
-    for (const [key, value] of Object.entries(obj)) {
-      if (typeof value === 'object' && !Array.isArray(value) && result[key] && typeof result[key] === 'object') {
-        result[key] = { ...result[key], ...value };
-      } else {
-        result[key] = value;
-      }
+// ── Deep merge utility ──
+function deepMerge(target, source) {
+  const result = { ...target };
+  for (const key in source) {
+    if (source[key] && typeof source[key] === 'object' && !Array.isArray(source[key]) &&
+        result[key] && typeof result[key] === 'object' && !Array.isArray(result[key])) {
+      result[key] = deepMerge(result[key], source[key]);
+    } else {
+      result[key] = source[key];
     }
   }
   return result;
 }
 
-const arFlat = flatMerge(
-  arCommon, { auth: arAuth }, { dashboard: arDashboard }, { agents: arAgents },
-  { tools: arTools }, { knowledge: arKnowledge }, { leads: arLeads }, { chat: arChat },
-  { calls: arCalls }, { campaigns: arCampaigns }, { analytics: arAnalytics },
-  { phones: arPhones }, { billing: arBilling }, { settings: arSettings },
-  { admin: arAdmin }, { notifications: arNotifications }, { integrations: arIntegrations },
-  { errors: arErrors }, { validation: arValidation }
+// ── Build AR: legacy first (base), then new namespaces on top ──
+const arFlat = deepMerge(
+  // Legacy keys (login.*, asst.*, over.*, dash.*, sett.*, bal.*, pay.*, kb.*, integ.*, lead.*, etc.)
+  arLegacy,
+  // New namespace keys
+  {
+    ...arCommon,
+    auth: arAuth,
+    dashboard: arDashboard,
+    agents: arAgents,
+    tools: arTools,
+    knowledge: arKnowledge,
+    leads: arLeads,
+    chat: arChat,
+    calls: arCalls,
+    campaigns: arCampaigns,
+    analytics: arAnalytics,
+    phones: arPhones,
+    billing: arBilling,
+    settings: arSettings,
+    admin: arAdmin,
+    notifications: arNotifications,
+    integrations: arIntegrations,
+    errors: arErrors,
+    validation: arValidation,
+  }
 );
 
-const enFlat = flatMerge(
-  enCommon, { auth: enAuth }, { dashboard: enDashboard }, { agents: enAgents },
-  { tools: enTools }, { knowledge: enKnowledge }, { leads: enLeads }, { chat: enChat },
-  { calls: enCalls }, { campaigns: enCampaigns }, { analytics: enAnalytics },
-  { phones: enPhones }, { billing: enBilling }, { settings: enSettings },
-  { admin: enAdmin }, { notifications: enNotifications }, { integrations: enIntegrations },
-  { errors: enErrors }, { validation: enValidation }
+// ── Build EN: same approach ──
+const enFlat = deepMerge(
+  enLegacy,
+  {
+    ...enCommon,
+    auth: enAuth,
+    dashboard: enDashboard,
+    agents: enAgents,
+    tools: enTools,
+    knowledge: enKnowledge,
+    leads: enLeads,
+    chat: enChat,
+    calls: enCalls,
+    campaigns: enCampaigns,
+    analytics: enAnalytics,
+    phones: enPhones,
+    billing: enBilling,
+    settings: enSettings,
+    admin: enAdmin,
+    notifications: enNotifications,
+    integrations: enIntegrations,
+    errors: enErrors,
+    validation: enValidation,
+  }
 );
 
 i18n
@@ -92,9 +129,6 @@ i18n
     nsSeparator: false,
     interpolation: {
       escapeValue: false,
-      // Support old {n} format alongside new {{n}} format
-      prefix: '{{',
-      suffix: '}}',
     },
     detection: {
       order: ['localStorage', 'navigator'],

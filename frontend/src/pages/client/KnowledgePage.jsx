@@ -6,7 +6,19 @@ import {
 } from "lucide-react";
 import { useTheme } from "@/hooks/useTheme";
 import { useLanguage } from "@/hooks/useLanguage";
-import { knowledgebasesAPI } from "@/services/api/sondosAPI";
+import knowledgeAPI from "@/services/api/knowledgeAPI";
+// v2: Compatibility wrapper mapping old API to new
+const knowledgebasesAPI = {
+  getAll: async () => { const res = await knowledgeAPI.getAllBases(); return { data: (res.data?.data || []).map(b => ({ id: b.id, name: b.name, description: b.description, documents_count: b.totalDocuments, ...b })) }; },
+  getDocuments: async (kbId) => { const res = await knowledgeAPI.getDocuments(kbId); return { data: (res.data?.data || []).map(d => ({ id: d.id, name: d.fileName || d.faqQuestion || d.sourceUrl, type: d.sourceType, status: d.status, ...d })) }; },
+  delete: async (id) => knowledgeAPI.deleteBase(id),
+  update: async (id, data) => knowledgeAPI.updateBase(id, data),
+  create: async (data) => { const res = await knowledgeAPI.createBase(data); return { data: res.data?.data }; },
+  deleteDocument: async (kbId, docId) => knowledgeAPI.deleteDocument(docId),
+  updateDocument: async (kbId, docId, data) => { /* v2: not implemented yet */ },
+  uploadDocument: async (kbId, fileName, content, fileType, file) => knowledgeAPI.uploadDocument(kbId, file),
+  createDocument: async (kbId, data) => { if (data.type === 'url') return knowledgeAPI.addUrl(kbId, data.url || data.content); if (data.type === 'faq') return knowledgeAPI.addFaq(kbId, data.question || data.name, data.answer || data.content); return knowledgeAPI.addUrl(kbId, data.content); },
+};
 
 export default function KnowledgePage() {
   const { isDark } = useTheme();

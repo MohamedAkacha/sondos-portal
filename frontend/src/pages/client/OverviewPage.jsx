@@ -7,10 +7,15 @@ import {
 } from "lucide-react";
 import { useTheme } from "@/hooks/useTheme";
 import { useLanguage } from "@/hooks/useLanguage";
-import { 
-  callsAPI, leadsAPI, campaignsAPI, assistantsAPI, 
-  knowledgebasesAPI, phoneNumbersAPI, userAPI 
-} from "@/services/api/sondosAPI";
+// v2: Compatibility wrappers for new API endpoints
+const _fetch = async (url) => { const token = localStorage.getItem('auth_token'); const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } }); return res.json(); };
+const callsAPI = { getAll: async () => { const d = await _fetch('/api/livekit/calls?limit=50'); return { data: d.data || d.calls || [] }; } };
+const leadsAPI = { getAll: async () => { const d = await _fetch('/api/leads?limit=50'); return { data: d.data?.leads || d.data || [] }; } };
+const campaignsAPI = { getAll: async () => { const d = await _fetch('/api/campaigns'); return { data: d.data || d.campaigns || [] }; } };
+const assistantsAPI = { getAll: async () => { const d = await _fetch('/api/agents'); return { data: d.data || d.agents || [] }; } };
+const knowledgebasesAPI = { getAll: async () => { const d = await _fetch('/api/knowledge/bases'); return { data: d.data || [] }; } };
+const phoneNumbersAPI = { getAll: async () => { const d = await _fetch('/api/phones'); return { data: d.data || d.phoneNumbers || [] }; } };
+const userAPI = { me: async () => { const d = await _fetch('/api/auth/me'); return d; } };
 
 export default function OverviewPage() {
   const { isDark } = useTheme();
